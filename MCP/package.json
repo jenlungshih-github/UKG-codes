@@ -1,0 +1,59 @@
+{
+  "name": "mcp-healthtime-server",
+  "version": "2.0.0",
+  "description": "Enhanced MCP server for HealthTime MSSQL database access",
+  "type": "module",
+  "main": "improved_mcp_healthtime_server.js",
+  "scripts": {
+    "start": "node improved_mcp_healthtime_server.js",
+    "dev": "LOG_LEVEL=debug node improved_mcp_healthtime_server.js",
+    "test": "node -e \"require('./improved_mcp_healthtime_server.js').testDatabaseConnection()\"",
+    "health-check": "node -e \"require('./improved_mcp_healthtime_server.js').handleHealthCheck()\"",
+    "lint": "eslint improved_mcp_healthtime_server.js",
+    "format": "prettier --write improved_mcp_healthtime_server.js"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "mssql",
+    "sql-server",
+    "database",
+    "healthtime",
+    "api"
+  ],
+  "author": "Enhanced MCP Server Implementation",
+  "license": "MIT",
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.4.0",
+    "mssql": "^10.0.4",
+    "winston": "^3.11.0"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.0",
+    "prettier": "^3.2.5"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/mcp-healthtime-server.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-org/mcp-healthtime-server/issues"
+  },
+  "homepage": "https://github.com/your-org/mcp-healthtime-server#readme",
+  "config": {
+    "database": {
+      "server": "INFOSDBT01\\INFOS01TST",
+      "database": "healthtime",
+      "encrypt": false,
+      "trustServerCertificate": true
+    },
+    "server": {
+      "port": 3001,
+      "name": "MCP_HealthTime",
+      "version": "2.0.0"
+    }
+  }
+}

@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>dbo.UKG_UCPATH_ACCRUAL_BUILD - SQL Documentation</title>
+    <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+    <div class="container">
+        <a href="../index.html" class="back-link">&larr; Back to Index</a>
+        <h1>dbo.UKG_UCPATH_ACCRUAL_BUILD</h1>
+        <p class="description"><strong>Description:</strong> UCPATH accrual build.</p>
+        <h2>SQL Definition</h2>
+        <pre><code>
+                                                                                                                                                                                                                                                             
+
+                                                                                                                                                                                                                                                             
+
+                                                                                                                                                                                                                                                             
+/***************************************
+                                                                                                                                                                                                                     
+* Created By: May Xu	
+                                                                                                                                                                                                                                        
+* Table: This SP creates table [dbo].UKG_UCPATH_ACCRUAL	to create file accrual_import.csv
+                                                                                                                                                                    
+  --Extract data from the PS_UC_AM_SS_TBL for the new accruals based upon when the quadriweekly accruals are posted. 	  
+                                                                                                                                     
+  --Accruals are posted to the ODS 8-10 days after the period end date and then posted to the local ODS a day later.
+                                                                                                                                         
+  -- Should extract for all UKG employees who were active in the period that matches the asofdate or are active on the posting date.		
+                                                                                                                       
+* @param @payenddt DATE: The end date of the pay period for which accruals are being processed.
+                                                                                                                                                              
+*                        The ASOFDATE for accruals will be determined relative to this pay period.
+                                                                                                                                                           
+* EXEC 	[dbo].[UKG_UCPATH_ACCRUAL_BUILD] @payenddt = '2025-10-11' -- Example date
+                                                                                                                                                                            
+* -- 05/09/2025 May Xu: Created
+                                                                                                                                                                                                                              
+* -- 05/22/2025 Jim Shih: UNION stage.UKG_INACTIVE_EMPLID_BY_PAYPERIOD, and change to AM.ASOFDATE BETWEEN DATEADD(day, -13, @payenddt) AND @payenddt   
+                                                                                                      
+*-- 7/16/2025 Jim Shih
+                                                                                                                                                                                                                                       
+*-- migrate from hs-ssisp-v
+                                                                                                                                                                                                                                  
+* -- 11/02/2025 Jim Shih: Modified to use CREATE TABLE instead of DROP/CREATE pattern, implemented MERGE statement 
+                                                                                                                                          
+*                        for insert-only operations when records don't match on hash_value. Added Inserted_DT column with GETDATE() timestamp.
+                                                                                                               
+* -- 11/05/2025 Jim Shih: Modify the logic, only HR_Status='A' UKG employee at the time when I generated the files
+                                                                                                                                           
+******************************************/
+                                                                                                                                                                                                                  
+
+                                                                                                                                                                                                                                                             
+CREATE   PROCEDURE [dbo].[UKG_UCPATH_ACCRUAL_BUILD]
+                                                                                                                                                                                                          
+    @payenddt DATE
+                                                                                                                                                                                                                                           
+AS
+                                                                                                                                                                                                                                                           
+
+                                                                                                                                                                                                                                                             
+BEGIN
+                                                                                                                                                                                                                                                        
+
+                                                                                                                                                                                                                                                             
+    SET NOCOUNT ON;
+                                                                                                                                                                                                                                          
+
+                                                                                                                                                                                                                                                             
+    -- as of date:  The date on which the accrual amount is effective (Today, Current Pay Period Start or Source File Effective Date)
+                                                                                                                        
+
+                                                                                                                                                                                                                                                             
+    -- Create temporary table for source data
+                                                                                                                                                                                                                
+    CREATE TABLE #SourceData
+                                                                                                                                                                                                                                 
+    (
+                                                                                                                                                                                                                                                        
+        [EMPLID] [varchar](11) NULL,
+                                                                                                                                                                                                                         
+        [ASOFDATE] [date] NULL,
+                                                                                                                                                                                                                              
+        [PIN_NUM] [int] NULL,
+                                                                                                                                                                                                                                
+        [UC_PREV_BAL] [decimal](15, 2) NULL,
+                                                                                                                                                                                                                 
+        [UC_PRD_TAKEN] [decimal](14, 2) NULL,
+                                                                                                                                                                                                                
+        [UC_PRD_ACCRUAL] [decimal](14, 2) NULL,
+                                                                                                                                                                                                              
+        [UC_PRD_ADJUSTED] [decimal](14, 2) NULL,
+                                                                                                                                                                                                             
+        [UC_CURR_BAL] [decimal](14, 2) NULL,
+                                                                                                                                                                                                                 
+        [UC_ACCR_LIMIT] [decimal](14, 2) NULL,
+                                                                                                                                                                                                               
+        [UC_APR_MAX_IND] [varchar](1) NULL,
+                                                                                                                                                                                                                  
+        [ORDER_NUM] [int] NULL,
+                                                                                                                                                                                                                              
+        [CR_BT_DTM] [datetime] NULL,
+                                                                                                                                                                                                                         
+        [CR_BT_NBR] [numeric](18, 0) NULL,
+                                                                                                                                                                                                                   
+        [UPD_BT_DTM] [datetime] NULL,
+                                                                                                                                                                                                                        
+        [UPD_BT_NBR] [numeric](18, 0) NULL,
+                                                                                                                                                                                                                  
+        [ODS_VRSN_NBR] [numeric](18, 0) NULL,
+                                                                                                                                                                                                                
+        [hash_value] [varbinary](16) NOT NULL
+                                                                                                                                                                                                                
+    );
+                                                                                                                                                                                                                                                       
+
+                                                                                                                                                                                                                                                             
+    -- Insert source data
+                                                                                                                                                                                                                                    
+    WITH
+                                                                                                                                                                                                                                                     
+        CombinedEmplids
+                                                                                                                                                                                                                                      
+        AS
+                                                                                                                                                                                                                                                   
+        (
+                                                                                                                                                                                                                                                    
+            -- Select active UKG-managed employees
+                                                                                                                                                                                                           
+                            SELECT DISTINCT EMPLID
+                                                                                                                                                                                                           
+                FROM dbo.UKG_EMPLOYEE_DATA
+                                                                                                                                                                                                                   
+                WHERE 
+                                                                                                                                                                                                                                       
+				NON_UKG_MANAGER_FLAG != 'T'
+                                                                                                                                                                                                                              
+				and
+                                                                                                                                                                                                                                                      
+				HR_STATUS='A'
+                                                                                                                                                                                                                                            
+
+                                                                                                                                                                                                                                                             
+            -- UNION
+                                                                                                                                                                                                                                         
+
+                                                                                                                                                                                                                                                             
+                -- -- Select employees identified as inactive or not managed under UKG for the period
+                                                                                                                                                        
+                -- SELECT DISTINCT EMPLID
+                                                                                                                                                                                                                    
+                -- FROM stage.UKG_INACTIVE_EMPLID_BY_PAYPERIOD
+                                                                                                                                                                                               
+            -- -- Assumes UKG_INACTIVE_EMPLID_BY_PAYPERIOD is populated correctly for the @payenddt period
+                                                                                                                                                   
+        )
+                                                                                                                                                                                                                                                    
+    INSERT INTO #SourceData
+                                                                                                                                                                                                                                  
+        ([EMPLID], [ASOFDATE], [PIN_NUM], [UC_PREV_BAL], [UC_PRD_TAKEN], [UC_PRD_ACCRUAL],
+                                                                                                                                                                   
+        [UC_PRD_ADJUSTED], [UC_CURR_BAL], [UC_ACCR_LIMIT], [UC_APR_MAX_IND], [ORDER_NUM],
+                                                                                                                                                                    
+        [CR_BT_DTM], [CR_BT_NBR], [UPD_BT_DTM], [UPD_BT_NBR], [ODS_VRSN_NBR], [hash_value])
+                                                                                                                                                                  
+    SELECT AM.[EMPLID]
+                                                                                                                                                                                                                                       
+      , AM.[ASOFDATE]
+                                                                                                                                                                                                                                        
+      , AM.[PIN_NUM]
+                                                                                                                                                                                                                                         
+      , AM.[UC_PREV_BAL]
+                                                                                                                                                                                                                                     
+      , AM.[UC_PRD_TAKEN]
+                                                                                                                                                                                                                                    
+      , AM.[UC_PRD_ACCRUAL]
+                                                                                                                                                                                                                                  
+      , AM.[UC_PRD_ADJUSTED]
+                                                                                                                                                                                                                                 
+      , AM.[UC_CURR_BAL]
+                                                                                                                                                                                                                                     
+      , AM.[UC_ACCR_LIMIT]
+                                                                                                                                                                                                                                   
+      , AM.[UC_APR_MAX_IND]
+                                                                                                                                                                                                                                  
+      , AM.[ORDER_NUM]
+                                                                                                                                                                                                                                       
+      , AM.[CR_BT_DTM]
+                                                                                                                                                                                                                                       
+      , AM.[CR_BT_NBR]
+                                                                                                                                                                                                                                       
+      , AM.[UPD_BT_DTM]
+                                                                                                                                                                                                                                      
+      , AM.[UPD_BT_NBR]
+                                                                                                                                                                                                                                      
+      , AM.[ODS_VRSN_NBR]
+                                                                                                                                                                                                                                    
+      , HASHBYTES('MD5', CONCAT(
+                                                                                                                                                                                                                             
+            AM.EMPLID,
+                                                                                                                                                                                                                                       
+          AM.ASOFDATE,
+                                                                                                                                                                                                                                       
+            AM.PIN_NUM,
+                                                                                                                                                                                                                                      
+            AM.UC_PREV_BAL,
+                                                                                                                                                                                                                                  
+            AM.UC_PRD_TAKEN,
+                                                                                                                                                                                                                                 
+            AM.UC_PRD_ACCRUAL,
+                                                                                                                                                                                                                               
+            AM.UC_PRD_ADJUSTED,
+                                                                                                                                                                                                                              
+            AM.UC_CURR_BAL,
+                                                                                                                                                                                                                                  
+            AM.UC_ACCR_LIMIT,
+                                                                                                                                                                                                                                
+            AM.UC_APR_MAX_IND,
+                                                                                                                                                                                                                               
+            AM.ORDER_NUM,
+                                                                                                                                                                                                                                    
+            AM.CR_BT_DTM,
+                                                                                                                                                                                                                                    
+            AM.CR_BT_NBR,
+                                                                                                                                                                                                                                    
+            AM.UPD_BT_DTM,
+                                                                                                                                                                                                                                   
+            AM.UPD_BT_NBR,
+                                                                                                                                                                                                                                   
+            AM.ODS_VRSN_NBR
+                                                                                                                                                                                                                                  
+        )) AS hash_value
+                                                                                                                                                                                                                                     
+    FROM health_ods.[HEALTH_ODS].STABLE.PS_UC_AM_SS_TBL AM
+                                                                                                                                                                                                   
+        JOIN CombinedEmplids CE ON AM.EMPLID = CE.EMPLID
+                                                                                                                                                                                                     
+    WHERE 	
+                                                                                                                                                                                                                                                  
+        1=1
+                                                                                                                                                                                                                                                  
+        AND AM.PIN_NUM in (262287,260269,260259,260125,260086 ,262342)
+                                                                                                                                                                                       
+        AND AM.ASOFDATE BETWEEN DATEADD(day, -13, @payenddt) AND @payenddt
+                                                                                                                                                                                   
+        and AM.DML_IND &lt;&gt; 'D';
+                                                                                                                                                                                                                               
+
+                                                                                                                                                                                                                                                             
+    -- Perform MERGE operation - Insert records when hash_value doesn't match
+                                                                                                                                                                                
+    MERGE [dbo].[UKG_UCPATH_ACCRUAL] AS target
+                                                                                                                                                                                                               
+    USING #SourceData AS source
+                                                                                                                                                                                                                              
+    ON (target.[EMPLID] = source.[EMPLID]
+                                                                                                                                                                                                                    
+        AND target.[hash_value] = source.[hash_value])
+                                                                                                                                                                                                       
+    WHEN NOT MATCHED THEN
+                                                                                                                                                                                                                                    
+        INSERT ([EMPLID], [ASOFDATE], [PIN_NUM], [UC_PREV_BAL], [UC_PRD_TAKEN], [UC_PRD_ACCRUAL], 
+                                                                                                                                                           
+                [UC_PRD_ADJUSTED], [UC_CURR_BAL], [UC_ACCR_LIMIT], [UC_APR_MAX_IND], [ORDER_NUM], 
+                                                                                                                                                           
+                [CR_BT_DTM], [CR_BT_NBR], [UPD_BT_DTM], [UPD_BT_NBR], [ODS_VRSN_NBR], [hash_value], [Inserted_DT])
+                                                                                                                                           
+        VALUES (source.[EMPLID], source.[ASOFDATE], source.[PIN_NUM], source.[UC_PREV_BAL], source.[UC_PRD_TAKEN], 
+                                                                                                                                          
+                source.[UC_PRD_ACCRUAL], source.[UC_PRD_ADJUSTED], source.[UC_CURR_BAL], source.[UC_ACCR_LIMIT], 
+                                                                                                                                            
+                source.[UC_APR_MAX_IND], source.[ORDER_NUM], source.[CR_BT_DTM], source.[CR_BT_NBR], 
+                                                                                                                                                        
+                source.[UPD_BT_DTM], source.[UPD_BT_NBR], source.[ODS_VRSN_NBR], source.[hash_value], GETDATE());
+                                                                                                                                            
+
+                                                                                                                                                                                                                                                             
+    -- Clean up temporary table
+                                                                                                                                                                                                                              
+    DROP TABLE #SourceData;
+                                                                                                                                                                                                                                  
+
+                                                                                                                                                                                                                                                             
+END
+                                                                                                                                                                                                                                                          
+
+                                                                                                                                                                                                                                                             
+
+                                                                                                                                                                                                                                                             
+
+                                                                                                                                                                                                                                                             
+</code></pre>
+        <footer>Generated from: dbo.UKG_UCPATH_ACCRUAL_BUILD.sql</footer>
+    </div>
+</body>
+</html>

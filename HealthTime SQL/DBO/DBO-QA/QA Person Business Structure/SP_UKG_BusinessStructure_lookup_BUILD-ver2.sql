@@ -1,0 +1,50 @@
+/*
+================================================================================
+STORED PROCEDURE: stage.SP_UKG_BusinessStructure_lookup_BUILD
+VERSION: 2.0
+CREATED BY: Jim Shih
+CREATED DATE: December 18, 2025
+PURPOSE: Build UKG Business Structure lookup table for QA purposes
+         Creates hierarchical parent path strings from business structure data
+DEPENDENCIES: HealthTime.hts.UKG_BusinessStructure table
+OUTPUTS: stage.UKG_BusinessStructure_lookup table
+NOTES: Excludes 'Non-Health' organization records
+       Parent Path format: Organization/EntityTitle/ServiceLineTitle/FinancialUnit/FundGroup
+EXECUTION: EXEC stage.SP_UKG_BusinessStructure_lookup_BUILD
+           -- No parameters required, procedure handles all table creation internally
+================================================================================
+*/
+
+CREATE OR ALTER PROCEDURE stage.SP_UKG_BusinessStructure_lookup_BUILD
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    -- QA Step 1: Drop existing lookup table if present to ensure clean rebuild
+    -- This prevents data integrity issues and ensures fresh data load
+    IF OBJECT_ID('stage.UKG_BusinessStructure_lookup', 'U') IS NOT NULL
+    BEGIN
+        DROP TABLE stage.UKG_BusinessStructure_lookup;
+        PRINT 'Existing stage.UKG_BusinessStructure_lookup table dropped for rebuild.';
+    END
+
+    -- QA Step 2: Create the hierarchical lookup table
+    -- Concatenates business structure hierarchy into a single parent path string
+    -- Format: Organization/EntityTitle/ServiceLineTitle/FinancialUnit/FundGroup
+    SELECT
+        [Organization] + '/' +
+          [EntityTitle] + '/' +
+          [ServiceLineTitle] + '/' +
+          [FinancialUnit] + '/' +
+          [FundGroup] AS [Parent Path]
+    INTO stage.UKG_BusinessStructure_lookup
+    FROM [HealthTime].[hts].[UKG_BusinessStructure]
+    WHERE Organization != 'Non-Health';
+    -- QA Filter: Exclude Non-Health organizations per business requirements
+
+    -- QA Step 3: Verify table creation and provide feedback
+    DECLARE @RecordCount INT = @@ROWCOUNT;
+    PRINT 'Table stage.UKG_BusinessStructure_lookup has been successfully created.';
+    PRINT 'Records processed: ' + CAST(@RecordCount AS VARCHAR(10));
+    PRINT 'QA Note: Non-Health organization records excluded as per business rules.';
+END

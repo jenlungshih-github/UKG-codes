@@ -1,0 +1,3 @@
+        HASHBYTES('md5', CONCAT(
+            EMPLID, DEPTID, VC_CODE, hr_status, empl_Status, termination_dt, action, action_dt
+        )) AS hash_value,

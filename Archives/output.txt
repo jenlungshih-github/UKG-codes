@@ -1,0 +1,37 @@
+Starting Position Trace Analysis...
+POSITION_NBR_To_Check Inactive_EMPLID_To_Check MANAGER_POSITION_NBR POSN_LEVEL To_Trace_Up_1
+--------------------- ------------------------ -------------------- ---------- -------------
+40649050              10369940                 40655125             NULL       yes          
+40649051              10369940                 40655125             NULL       yes          
+40688126              10404957                 40710825             LEVEL3     no           
+40695802              10401936                 40767081             LEVEL5     no           
+40697146              10595622                 40689744             LEVEL5     no           
+40699053              10414396                 40689744             LEVEL5     no           
+40700950              10415598                 40689744             LEVEL5     no           
+40703703              10420535                 40657300             LEVEL3     no           
+40704589              10283289                 40786234             LEVEL2     no           
+40709698              10423324                 41156004             LEVEL3     no           
+40709834              10416455                 40689744             LEVEL5     no           
+POSITION_NBR_To_Check MANAGER_POSITION_NBR POSN_LEVEL To_Trace_Up_1 MANAGER_POSITION_NBR_L1 MANAGER_EMPLID MANAGER_HR_STATUS MANAGER_POSN_STATUS MANAGER_POSN_LEVEL_L1 To_Trace_Up_2 NOTE_L1                                 
+--------------------- -------------------- ---------- ------------- ----------------------- -------------- ----------------- ------------------- --------------------- ------------- ----------------------------------------
+40649050              40655125             NULL       yes           40655125                NULL           NULL              NULL                NULL                  no            missing in PS_JOB                       
+40649051              40655125             NULL       yes           40655125                NULL           NULL              NULL                NULL                  no            missing in PS_JOB                       
+POSITION_NBR_To_Check MANAGER_POSITION_NBR POSN_LEVEL To_Trace_Up_1 MANAGER_POSITION_NBR_L1 MANAGER_EMPLID MANAGER_HR_STATUS MANAGER_POSN_STATUS MANAGER_POSN_LEVEL_L1 To_Trace_Up_2 NOTE_L1                                  MANAGER_POSITION_NBR_L2 MANAGER_EMPLID_L2 MANAGER_HR_STATUS_L2 MANAGER_POSN_STATUS_L2 MANAGER_POSN_LEVEL_L2 NOTE_L2                                  To_Trace_Up_3
+--------------------- -------------------- ---------- ------------- ----------------------- -------------- ----------------- ------------------- --------------------- ------------- ---------------------------------------- ----------------------- ----------------- -------------------- ---------------------- --------------------- ---------------------------------------- -------------
+POSITION_NBR_To_Check MANAGER_POSITION_NBR POSN_LEVEL To_Trace_Up_1 MANAGER_POSITION_NBR_L1 MANAGER_EMPLID MANAGER_HR_STATUS MANAGER_POSN_STATUS MANAGER_POSN_LEVEL_L1 To_Trace_Up_2 NOTE_L1                                  MANAGER_POSITION_NBR_L2 MANAGER_EMPLID_L2 MANAGER_HR_STATUS_L2 MANAGER_POSN_STATUS_L2 MANAGER_POSN_LEVEL_L2 To_Trace_Up_3 NOTE_L2                                  MANAGER_POSITION_NBR_L3 MANAGER_EMPLID_L3 MANAGER_HR_STATUS_L3 MANAGER_POSN_STATUS_L3 MANAGER_POSN_LEVEL_L3 NOTE_L3                                  To_Trace_Up_4
+--------------------- -------------------- ---------- ------------- ----------------------- -------------- ----------------- ------------------- --------------------- ------------- ---------------------------------------- ----------------------- ----------------- -------------------- ---------------------- --------------------- ------------- ---------------------------------------- ----------------------- ----------------- -------------------- ---------------------- --------------------- ---------------------------------------- -------------
+POSITION_NBR_To_Check MANAGER_POSITION_NBR POSN_LEVEL To_Trace_Up_1 MANAGER_POSITION_NBR_L1 MANAGER_EMPLID MANAGER_HR_STATUS MANAGER_POSN_STATUS MANAGER_POSN_LEVEL_L1 To_Trace_Up_2 NOTE_L1                                  MANAGER_POSITION_NBR_L2 MANAGER_EMPLID_L2 MANAGER_HR_STATUS_L2 MANAGER_POSN_STATUS_L2 MANAGER_POSN_LEVEL_L2 To_Trace_Up_3 NOTE_L2                                  MANAGER_POSITION_NBR_L3 MANAGER_EMPLID_L3 MANAGER_HR_STATUS_L3 MANAGER_POSN_STATUS_L3 MANAGER_POSN_LEVEL_L3 To_Trace_Up_4 NOTE_L3                                  MANAGER_POSITION_NBR_L4 MANAGER_EMPLID_L4 MANAGER_HR_STATUS_L4 MANAGER_POSN_STATUS_L4 MANAGER_POSN_LEVEL_L4 NOTE_L4                                  To_Trace_Up_5
+--------------------- -------------------- ---------- ------------- ----------------------- -------------- ----------------- ------------------- --------------------- ------------- ---------------------------------------- ----------------------- ----------------- -------------------- ---------------------- --------------------- ------------- ---------------------------------------- ----------------------- ----------------- -------------------- ---------------------- --------------------- ------------- ---------------------------------------- ----------------------- ----------------- -------------------- ---------------------- --------------------- ---------------------------------------- -------------
+Created table [stage].[UKG_EMPL_Inactive_Manager_Hierarchy]
+Inserted 11 records from #temp1 (Level 0)
+Inserted 2 records from #temp2 (Level 1)
+Inserted 0 records from #temp3 (Level 2)
+Inserted 0 records from #temp4 (Level 3)
+Inserted 0 records from #temp5 (Level 4)
+HIERARCHY_LEVEL Record_Count
+--------------- ------------
+Level_0                   11
+Level_1                    2
+Position Trace Analysis completed successfully.
+Data from temp tables #temp1 through #temp5 has been inserted into [stage].[UKG_EMPL_Inactive_Manager_Hierarchy]
+Temp tables cleaned up successfully.

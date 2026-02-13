@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>stage.SP_UKG_Accrual_Update_Final_Step - SQL Documentation</title>
+    <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+    <div class="container">
+        <a href="../index.html" class="back-link">&larr; Back to Index</a>
+        <h1>stage.SP_UKG_Accrual_Update_Final_Step</h1>
+        <p class="description"><strong>Description:</strong> Accrual update final step.</p>
+        <h2>SQL Definition</h2>
+        <pre><code>
+                                                                                                                                                                                                                                                             
+
+                                                                                                                                                                                                                                                             
+/*
+                                                                                                                                                                                                                                                           
+=============================================================================
+                                                                                                                                                                                
+Stored Procedure: stage.SP_UKG_Accrual_Update_Final_Step
+                                                                                                                                                                                                     
+Description: Final step in UKG accrual processing - updates records with 
+                                                                                                                                                                                    
+             processed flag and pay end date
+                                                                                                                                                                                                                 
+Version: 1.0
+                                                                                                                                                                                                                                                 
+Created: 2025-11-04
+                                                                                                                                                                                                                                          
+Created by: Jim Shih
+                                                                                                                                                                                                                                         
+Exec Method: exec stage.SP_UKG_Accrual_Update_Final_Step @payenddt='2025-10-25'
+                                                                                                                                                                              
+=============================================================================
+                                                                                                                                                                                
+*/
+                                                                                                                                                                                                                                                           
+
+                                                                                                                                                                                                                                                             
+CREATE   PROCEDURE [stage].[SP_UKG_Accrual_Update_Final_Step]
+                                                                                                                                                                                                
+    @payenddt DATE -- = '2025-10-25'
+                                                                                                                                                                                                                         
+-- Pay end date parameter with default value
+                                                                                                                                                                                                                 
+AS
+                                                                                                                                                                                                                                                           
+BEGIN
+                                                                                                                                                                                                                                                        
+    SET NOCOUNT ON;
+                                                                                                                                                                                                                                          
+
+                                                                                                                                                                                                                                                             
+    BEGIN TRY
+                                                                                                                                                                                                                                                
+        -- Logic: Update all unprocessed accrual records (where NOTE IS NULL)
+                                                                                                                                                                                
+        -- Set NOTE to 'P' (Processed) and assign the pay end date
+                                                                                                                                                                                           
+        UPDATE [dbo].[UKG_UCPATH_ACCRUAL]
+                                                                                                                                                                                                                    
+           SET NOTE = 'P'                    -- Mark as Processed
+                                                                                                                                                                                            
+              ,payenddt = @payenddt          -- Set pay end date
+                                                                                                                                                                                             
+         WHERE NOTE IS NULL;                 -- Only update unprocessed records
+                                                                                                                                                                              
+        
+                                                                                                                                                                                                                                                     
+        -- Return number of records updated
+                                                                                                                                                                                                                  
+        PRINT 'Records updated: ' + CAST(@@ROWCOUNT AS VARCHAR(10));
+                                                                                                                                                                                         
+        
+                                                                                                                                                                                                                                                     
+    END TRY
+                                                                                                                                                                                                                                                  
+    BEGIN CATCH
+                                                                                                                                                                                                                                              
+        -- Error handling
+                                                                                                                                                                                                                                    
+        PRINT 'Error occurred: ' + ERROR_MESSAGE();
+                                                                                                                                                                                                          
+        THROW;
+                                                                                                                                                                                                                                               
+    END CATCH
+                                                                                                                                                                                                                                                
+END
+                                                                                                                                                                                                                                                          
+</code></pre>
+        <footer>Generated from: stage.SP_UKG_Accrual_Update_Final_Step.sql</footer>
+    </div>
+</body>
+</html>

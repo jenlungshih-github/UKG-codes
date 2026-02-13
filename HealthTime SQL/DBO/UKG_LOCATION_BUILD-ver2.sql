@@ -1,0 +1,223 @@
+USE [HealthTime]
+GO
+
+/****** Object:  StoredProcedure [dbo].[UKG_LOCATION_BUILD]    Script Date: 9/6/2025 10:04:33 PM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+
+
+
+/***************************************
+* Created By: May Xu	
+* Table: This SP builds the UKG Business Structure table [dbo].UKG_LOCATION to create file BS_Locations_Import.csv
+* EXEC 	[dbo].UKG_LOCATION_BUILD	
+* -- 04/28/2025 May Xu: Created
+* -- 05/05/2025 May Xu: Removed the last folder for each location level from [Parent Path]
+* -- 05/07/2025 May Xu: Changed the entity to EntityTitle, serviceline to ServiceLineTitle for the [Parent Path]
+* -- 05/14/2025 Jim Shih: For [dbo].UKG_LOCATION table, added a new column [Description] to store the description of each location level
+* -- 05/19/2025 Jim Shih: No need for Level 1 based on the meeting on 5/19/2025
+* -- 07/11/2025 May Xu: add code to create a snapshot of the table UKG_LOCATION and drop any 30 days old snapshot
+* -- 07/14/2025 Jim Shih
+*-- migrate from hs-ssisp-v
+* -- 07/31/2025 Jim Shih: Per JK: There were also '-' in the description field.  Special characters should  be removed from this field in the file and in the Business Structure Elements 
+* -- 					  replace '/' with '-'
+* -- 08/04/2025 Jim Shis: EXEC [hts].[UKG_BusinessStructure_UPD] before EXEC [dbo].[UKG_LOCATION_BUILD]
+* --					  Per JK: Yes,  Call the procedure before running the statement and replace the function with the table. 
+* --					  FIXED special characters issue
+******************************************/
+
+ALTER     PROCEDURE [dbo].[UKG_LOCATION_BUILD]
+AS  
+BEGIN 
+
+-- EXEC [hts].[UKG_BusinessStructure_UPD] before EXEC [dbo].[UKG_LOCATION_BUILD]
+EXEC [hts].[UKG_BusinessStructure_UPD];
+
+DROP TABLE IF EXISTS [STAGE].UKG_LOCATION_TEMP;
+
+SELECT DISTINCT B.ORGANIZATION,
+        B.ORGANIZATIONTITLE, B.ENTITY, B.ENTITYTITLE, B.SERVICELINETITLE, 
+        B.SERVICELINE, B.FINANCIALUNIT, B.FINANCIALUNITTITLE,
+        B.FUNDGROUP, B.FUNDGROUPTITLE, E.JOBGROUP, J.JOBGROUPTITLE
+  INTO [STAGE].UKG_LOCATION_TEMP
+  FROM 
+  --dbo.[BUSINESSSTRUCTURE_GET]() B, -- comment out 8/4/2025
+  [hts].[UKG_BusinessStructure] B,
+       dbo.UKG_EMPLOYEE_DATA E,
+       hts.UKG_JobGroups J 
+ WHERE J.JOBGROUP = E.JOBGROUP
+   AND E.FUNDGROUP = B.FUNDGROUP 
+   AND E.[Home Business Structure Level 1 - Organization] != 'Non-Health';
+
+-- Ensure [dbo].[UKG_LOCATION] exists before TRUNCATE
+--IF OBJECT_ID('[dbo].[UKG_LOCATION]', 'U') IS NULL
+--BEGIN
+--    CREATE TABLE [dbo].[UKG_LOCATION] (
+--        [Location Type] NVARCHAR(255),
+--        [Parent Path] NVARCHAR(255),
+--        [Location Name] NVARCHAR(255),
+--        [Full Name] NVARCHAR(255),
+--        [Description] NVARCHAR(255)
+--        -- Add other columns as needed to match your inserts
+--    );
+--END
+    IF OBJECT_ID('[dbo].[UKG_LOCATION]', 'U') IS NULL
+    BEGIN
+        -- Create the UKG_LOCATION table
+        CREATE TABLE [dbo].[UKG_LOCATION](
+            [Location Type] [varchar](20) NOT NULL,
+            [Parent Path] [varchar](100) NULL,
+            [Location Name] [varchar](50) NULL,
+            [Full Name] [varchar](100) NULL,
+            [Description] [varchar](500) NULL,
+            [Effective Date] [varchar](10) NULL,
+            [Expiration Date] [varchar](10) NULL,
+            [Address] [varchar](1) NULL,
+            [Cost Center] [varchar](1) NULL,
+            [Direct Work Percent] [varchar](1) NULL,
+            [Indirect Work Percent] [varchar](1) NULL,
+            [Timezone] [varchar](1) NULL,
+            [Transferable] [varchar](1) NULL,
+            [External ID] [varchar](1) NULL
+        ) ON [PRIMARY];
+
+        -- Add default constraints
+        ALTER TABLE [dbo].[UKG_LOCATION] ADD DEFAULT ('') FOR [Description];
+        ALTER TABLE [dbo].[UKG_LOCATION] ADD DEFAULT ('1900-01-01') FOR [Effective Date];
+        ALTER TABLE [dbo].[UKG_LOCATION] ADD DEFAULT ('3000-01-01') FOR [Expiration Date];
+        ALTER TABLE [dbo].[UKG_LOCATION] ADD DEFAULT ('') FOR [Address];
+        ALTER TABLE [dbo].[UKG_LOCATION] ADD DEFAULT ('') FOR [Cost Center];
+        ALTER TABLE [dbo].[UKG_LOCATION] ADD DEFAULT ('') FOR [Direct Work Percent];
+        ALTER TABLE [dbo].[UKG_LOCATION] ADD DEFAULT ('') FOR [Indirect Work Percent];
+        ALTER TABLE [dbo].[UKG_LOCATION] ADD DEFAULT ('') FOR [Timezone];
+        ALTER TABLE [dbo].[UKG_LOCATION] ADD DEFAULT ('') FOR [Transferable];
+        ALTER TABLE [dbo].[UKG_LOCATION] ADD DEFAULT ('') FOR [External ID];
+        
+        PRINT 'UKG_LOCATION table created successfully.';
+    END
+    ELSE
+    BEGIN
+        PRINT 'UKG_LOCATION table already exists. No action taken.';
+    END
+
+TRUNCATE TABLE [dbo].UKG_LOCATION;
+
+-- Organization Level 1
+--INSERT INTO [dbo].UKG_LOCATION
+--      ([Location Type], [Parent Path], [Location Name], [Full Name], [Description]) 
+--SELECT DISTINCT 'Organization', Organization, Organization, Organization, OrganizationTitle
+--  FROM [dbo].UKG_LOCATION_TEMP;
+
+-- Entity Level 2
+INSERT INTO [dbo].UKG_LOCATION
+      ([Location Type], [Parent Path], [Location Name], [Full Name], [Description]) 
+SELECT DISTINCT 'Entity', Organization, EntityTitle, EntityTitle, Entity
+  FROM [STAGE].UKG_LOCATION_TEMP;
+
+-- Service Line Level 3
+INSERT INTO [dbo].UKG_LOCATION
+      ([Location Type], [Parent Path], [Location Name], [Full Name], [Description]) 
+SELECT DISTINCT 'Service Line', Organization + '/' + EntityTitle, ServiceLineTitle, ServiceLineTitle, ServiceLineTitle
+  FROM [STAGE].UKG_LOCATION_TEMP;
+
+-- Financial Unit Level 4
+INSERT INTO [dbo].UKG_LOCATION
+      ([Location Type], [Parent Path], [Location Name], [Full Name], [Description]) 
+SELECT DISTINCT 'Financial Unit', Organization + '/' + EntityTitle + '/' + ServiceLineTitle, FinancialUnit, FinancialUnit, FinancialUnitTitle
+  FROM [STAGE].UKG_LOCATION_TEMP;
+
+-- Fund Group Level 5
+INSERT INTO [dbo].UKG_LOCATION
+      ([Location Type], [Parent Path], [Location Name], [Full Name], [Description]) 
+SELECT DISTINCT 'Fund Group', Organization + '/' + EntityTitle + '/' + ServiceLineTitle + '/' + FinancialUnit, FundGroup, FundGroup, FundGroupTitle
+  FROM [STAGE].UKG_LOCATION_TEMP;
+
+-- Job Group Level 6
+INSERT INTO dbo.UKG_LOCATION
+      ([Location Type], [Parent Path], [Location Name], [Full Name], [Description]) 
+SELECT DISTINCT 'Job', Organization + '/' + EntityTitle + '/' + ServiceLineTitle + '/' + FinancialUnit + '/' + FundGroup, JOBGROUP, JOBGROUP, JOBGROUPTitle
+  FROM [STAGE].UKG_LOCATION_TEMP;
+
+-- fix special characters issue
+DROP TABLE if exists [stage].[UKG_LOCATION_BUILD_FIXED_SPEC_CHAR];
+
+    SELECT * 
+    INTO [stage].[UKG_LOCATION_BUILD_FIXED_SPEC_CHAR]
+    FROM [dbo].[UKG_LOCATION_V]
+;
+
+
+truncate table [dbo].[UKG_LOCATION];
+
+INSERT INTO [dbo].[UKG_LOCATION]
+           ([Location Type]
+           ,[Parent Path]
+           ,[Location Name]
+           ,[Full Name]
+           ,[Description]
+           ,[Effective Date]
+           ,[Expiration Date]
+           ,[Address]
+           ,[Cost Center]
+           ,[Direct Work Percent]
+           ,[Indirect Work Percent]
+           ,[Timezone]
+           ,[Transferable]
+           ,[External ID])
+SELECT [Location Type]
+      ,[Parent Path]
+      ,[Location Name]
+      ,[Full Name]
+      ,[Description]
+      ,[Effective Date]
+      ,[Expiration Date]
+      ,[Address]
+      ,[Cost Center]
+      ,[Direct Work Percent]
+      ,[Indirect Work Percent]
+      ,[Timezone]
+      ,[Transferable]
+      ,[External ID]
+  FROM [stage].[UKG_LOCATION_BUILD_FIXED_SPEC_CHAR]
+;
+
+-- ***LOOP TO DROP ANY 30 DAY OLD and TODAY’S UKG_LOCATION_SNAPSHOT TABLES ***--
+DECLARE @SQL_DROP NVARCHAR(MAX)   
+       
+SELECT 
+    @SQL_DROP = COALESCE(@SQL_DROP + ' ;', '') +       
+         'DROP TABLE ' + QUOTENAME(S.NAME) + '.' + QUOTENAME(T.NAME)    
+    FROM SYS.SCHEMAS S      
+    INNER JOIN SYS.TABLES T ON T.SCHEMA_ID = S.SCHEMA_ID       
+    WHERE S.NAME IN ( 'STAGE')        
+     AND T.NAME LIKE 'UKG_LOCATION_SNAPSHOT_%' -- SNAPSHOT_ (39)
+     AND ( CAST(SUBSTRING (T.NAME,23, 10 ) AS DATE) <  CAST(DATEADD(DAY,-5, GETDATE())   AS DATE)   OR CAST(SUBSTRING (T.NAME,23, 10 ) AS DATE) =  CAST(GETDATE()       AS DATE) )
+                     
+--PRINT @SQL_DROP  
+EXEC(@SQL_DROP)
+ 
+
+--*** CREATE SNAPSHOT TABLE  ***--
+
+DECLARE @SQL_CREATE NVARCHAR(MAX) ;  
+DECLARE @SNAPSHOT_TABLENAME NVARCHAR(50); 
+
+SET @SNAPSHOT_TABLENAME = 'UKG_LOCATION_SNAPSHOT_' + CAST(CAST(GETDATE() AS DATE) AS CHAR(10));
+
+SELECT 
+    @SQL_CREATE =  
+        N'DROP TABLE IF EXISTS bck.[' + @SNAPSHOT_TABLENAME + ']; ' +
+        N'SELECT * INTO bck.[' + @SNAPSHOT_TABLENAME + '] FROM dbo.UKG_LOCATION';
+
+--PRINT @SQL_CREATE;
+EXEC(@SQL_CREATE)
+
+END;
+GO
+
+

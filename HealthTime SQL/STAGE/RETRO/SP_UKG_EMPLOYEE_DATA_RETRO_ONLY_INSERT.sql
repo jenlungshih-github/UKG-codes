@@ -1,0 +1,377 @@
+USE [HealthTime]
+GO
+
+/****** Object:  StoredProcedure [stage].[SP_UKG_EMPLOYEE_DATA_RETRO_ONLY_INSERT]    Script Date: 10/27/2025 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+/***************************************************************************************************************************************************************************************************************************************************************
+--  Procedure Name: [stage].[SP_UKG_EMPLOYEE_DATA_RETRO_ONLY_INSERT]
+--  Author:         Jim Shih
+--  Version:        1.0
+--  Date:           10/27/2025
+--  Description:    This stored procedure inserts employee data into [stage].[UKG_EMPLOYEE_DATA_RETRO_ONLY] 
+--                  by joining a source table with the status lookup table.
+--                  Uses dynamic SQL to support flexible source table names and employee ID filtering.
+--
+--  Parameters:     
+--                  @p_source_table NVARCHAR(200) - Source table name (e.g., 'BCK.[UKG_EMPLOYEE_DATA_V_SNAPSHOT_2025-10-21]')
+--                  @p_emplid NVARCHAR(20) - Employee ID to filter (e.g., '10664090')
+--
+--  Example:        EXEC [stage].[SP_UKG_EMPLOYEE_DATA_RETRO_ONLY_INSERT] 
+--                      @p_source_table = 'BCK.[UKG_EMPLOYEE_DATA_V_SNAPSHOT_2025-10-21]',
+--                      @p_emplid = '10664090';
+--
+--  Version History:
+--  Date        Author               Description
+--  10/27/2025  Jim Shih             Initial procedure creation based on 20.sql
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+*/
+
+ALTER PROCEDURE [stage].[SP_UKG_EMPLOYEE_DATA_RETRO_ONLY_INSERT]
+    @p_source_table NVARCHAR(200),
+    @p_emplid NVARCHAR(20)
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @sql NVARCHAR(MAX);
+    DECLARE @table_check_sql NVARCHAR(MAX);
+    DECLARE @table_exists INT = 0;
+
+    -- Check if source table exists
+    SET @table_check_sql = N'IF OBJECT_ID(''' + @p_source_table + ''') IS NOT NULL SET @table_exists_out = 1 ELSE SET @table_exists_out = 0';
+
+    BEGIN TRY
+        EXEC sp_executesql @table_check_sql, N'@table_exists_out INT OUTPUT', @table_exists_out = @table_exists OUTPUT;
+    END TRY
+    BEGIN CATCH
+        PRINT 'ERROR: Cannot verify if source table ''' + @p_source_table + ''' exists.';
+        PRINT 'Error: ' + ERROR_MESSAGE();
+        RETURN;
+    END CATCH
+
+    IF @table_exists = 0
+    BEGIN
+        PRINT 'ERROR: Source table ''' + @p_source_table + ''' does not exist.';
+        PRINT 'Please verify the table name and schema.';
+        RETURN;
+    END
+
+    PRINT 'Source table ''' + @p_source_table + ''' found. Proceeding with insert...';
+
+    -- Build dynamic SQL statement
+    SET @sql = N'
+MERGE [stage].[UKG_EMPLOYEE_DATA_RETRO_ONLY] AS TARGET
+USING (
+SELECT DISTINCT
+    [Person Number]
+      , [First Name]
+      , [Last Name]
+      , [Middle Initial/Name]
+      , [Short Name]
+      , [Badge Number]
+      , B.[HIRE_DT] as [Hire Date]
+      , [Birth Date]
+      , [Seniority Date]
+      , [Manager Flag]
+      , [Phone 1]
+      , [Phone 2]
+      , '''' as [Email]  --make email blank until ready for testing
+      , [Address]
+      , [City]
+      , [State]
+      , [Postal Code]
+      , [Country]
+      , [Time Zone]
+      , B.[EMPL_STATUS] as [Employment Status]
+      , B.[EFFDT] as [Employment Status Effective Date]
+      , [Reports to Manager]
+      , [Union Code]
+      , [Employee Type]
+      , [Employee Classification]
+      , [Pay Frequency]
+      , [Worker Type]
+      , [FTE %]
+      , [FTE Standard Hours]
+      , [FTE Full Time Hours]
+      , [Standard Hours - Daily]
+      , [Standard Hours - Weekly]
+      , [Standard Hours - Pay Period]
+      , [Base Wage Rate]
+      , [Base Wage Rate Effective Date]
+      , [User Account Name]
+      , [User Account Status]
+      , [User Password]
+      , [Home Business Structure Level 1 - Organization]
+      , [Home Business Structure Level 2 - Entity]
+      , [Home Business Structure Level 3 - Service Line]
+      , [Home Business Structure Level 4 - Financial Unit]
+      , [Home Business Structure Level 5 - Fund Group]
+      , [Home Business Structure Level 6]
+      , [Home Business Structure Level 7]
+      , [Home Business Structure Level 8]
+      , [Home Business Structure Level 9]
+      , [Home/Primary Job]
+      , [Home Labor Category Level 1]
+      , [Home Labor Category Level 2]
+      , [Home Labor Category Level 3]
+      , [Home Labor Category Level 4]
+      , [Home Labor Category Level 5]
+      , [Home Labor Category Level 6]
+      , [Home Job and Labor Category Effective Date]
+      , [Custom Field 1]
+      , [Custom Field 2]
+      , [Custom Field 3]
+      , [Custom Field 4]
+      , [Custom Field 5]
+      , [Custom Field 6]
+      , [Custom Field 7]
+      , [Custom Field 8]
+      , [Custom Field 9]
+      , [Custom Field 10]
+      , [Custom Date 1] -- re-order after [Custom Field 10]
+      , [Custom Date 2]
+      , [Custom Date 3]
+      , [Custom Date 4]
+      , [Custom Date 5]
+      , [Custom Field 11]
+      , [Custom Field 12]
+      , [Custom Field 13]
+      , [Custom Field 14]
+      , [Custom Field 15]
+      , [Custom Field 16]
+      , [Custom Field 17]
+      , [Custom Field 18]
+      , [Custom Field 19]
+      , [Custom Field 20]
+      , [Custom Field 21]
+      , [Custom Field 22]
+      , [Custom Field 23]
+      , [Custom Field 24]
+      , [Custom Field 25]
+      , [Custom Field 26]
+      , [Custom Field 27]
+      , [Custom Field 28]
+      , [Custom Field 29]
+      , [Custom Field 30]
+      , [Additional Fields for CRT lookups]
+FROM ' + @p_source_table + N' A
+    JOIN [stage].[UKG_EMPL_STATUS_LOOKUP_RETRO_ONLY] B
+    ON A.[Person Number] = B.emplid
+WHERE [Person Number] = @p_emplid_param
+) AS SOURCE
+ON (TARGET.[Person Number] = SOURCE.[Person Number]
+    AND TARGET.[Hire Date] = SOURCE.[Hire Date]
+    AND TARGET.[Employment Status] = SOURCE.[Employment Status]
+    AND TARGET.[Employment Status Effective Date] = SOURCE.[Employment Status Effective Date])
+WHEN NOT MATCHED THEN
+INSERT
+    ([Person Number]
+    ,[First Name]
+    ,[Last Name]
+    ,[Middle Initial/Name]
+    ,[Short Name]
+    ,[Badge Number]
+    ,[Hire Date]
+    ,[Birth Date]
+    ,[Seniority Date]
+    ,[Manager Flag]
+    ,[Phone 1]
+    ,[Phone 2]
+    ,[Email]
+    ,[Address]
+    ,[City]
+    ,[State]
+    ,[Postal Code]
+    ,[Country]
+    ,[Time Zone]
+    ,[Employment Status]
+    ,[Employment Status Effective Date]
+    ,[Reports to Manager]
+    ,[Union Code]
+    ,[Employee Type]
+    ,[Employee Classification]
+    ,[Pay Frequency]
+    ,[Worker Type]
+    ,[FTE %]
+    ,[FTE Standard Hours]
+    ,[FTE Full Time Hours]
+    ,[Standard Hours - Daily]
+    ,[Standard Hours - Weekly]
+    ,[Standard Hours - Pay Period]
+    ,[Base Wage Rate]
+    ,[Base Wage Rate Effective Date]
+    ,[User Account Name]
+    ,[User Account Status]
+    ,[User Password]
+    ,[Home Business Structure Level 1 - Organization]
+    ,[Home Business Structure Level 2 - Entity]
+    ,[Home Business Structure Level 3 - Service Line]
+    ,[Home Business Structure Level 4 - Financial Unit]
+    ,[Home Business Structure Level 5 - Fund Group]
+    ,[Home Business Structure Level 6]
+    ,[Home Business Structure Level 7]
+    ,[Home Business Structure Level 8]
+    ,[Home Business Structure Level 9]
+    ,[Home/Primary Job]
+    ,[Home Labor Category Level 1]
+    ,[Home Labor Category Level 2]
+    ,[Home Labor Category Level 3]
+    ,[Home Labor Category Level 4]
+    ,[Home Labor Category Level 5]
+    ,[Home Labor Category Level 6]
+    ,[Home Job and Labor Category Effective Date]
+    ,[Custom Field 1]
+    ,[Custom Field 2]
+    ,[Custom Field 3]
+    ,[Custom Field 4]
+    ,[Custom Field 5]
+    ,[Custom Field 6]
+    ,[Custom Field 7]
+    ,[Custom Field 8]
+    ,[Custom Field 9]
+    ,[Custom Field 10]
+    ,[Custom Date 1]
+    ,[Custom Date 2]
+    ,[Custom Date 3]
+    ,[Custom Date 4]
+    ,[Custom Date 5]
+    ,[Custom Field 11]
+    ,[Custom Field 12]
+    ,[Custom Field 13]
+    ,[Custom Field 14]
+    ,[Custom Field 15]
+    ,[Custom Field 16]
+    ,[Custom Field 17]
+    ,[Custom Field 18]
+    ,[Custom Field 19]
+    ,[Custom Field 20]
+    ,[Custom Field 21]
+    ,[Custom Field 22]
+    ,[Custom Field 23]
+    ,[Custom Field 24]
+    ,[Custom Field 25]
+    ,[Custom Field 26]
+    ,[Custom Field 27]
+    ,[Custom Field 28]
+    ,[Custom Field 29]
+    ,[Custom Field 30]
+    ,[Additional Fields for CRT lookups]
+    )
+VALUES (
+    SOURCE.[Person Number]
+      , SOURCE.[First Name]
+      , SOURCE.[Last Name]
+      , SOURCE.[Middle Initial/Name]
+      , SOURCE.[Short Name]
+      , SOURCE.[Badge Number]
+      , SOURCE.[Hire Date]
+      , SOURCE.[Birth Date]
+      , SOURCE.[Seniority Date]
+      , SOURCE.[Manager Flag]
+      , SOURCE.[Phone 1]
+      , SOURCE.[Phone 2]
+      , SOURCE.[Email]
+      , SOURCE.[Address]
+      , SOURCE.[City]
+      , SOURCE.[State]
+      , SOURCE.[Postal Code]
+      , SOURCE.[Country]
+      , SOURCE.[Time Zone]
+      , SOURCE.[Employment Status]
+      , SOURCE.[Employment Status Effective Date]
+      , SOURCE.[Reports to Manager]
+      , SOURCE.[Union Code]
+      , SOURCE.[Employee Type]
+      , SOURCE.[Employee Classification]
+      , SOURCE.[Pay Frequency]
+      , SOURCE.[Worker Type]
+      , SOURCE.[FTE %]
+      , SOURCE.[FTE Standard Hours]
+      , SOURCE.[FTE Full Time Hours]
+      , SOURCE.[Standard Hours - Daily]
+      , SOURCE.[Standard Hours - Weekly]
+      , SOURCE.[Standard Hours - Pay Period]
+      , SOURCE.[Base Wage Rate]
+      , SOURCE.[Base Wage Rate Effective Date]
+      , SOURCE.[User Account Name]
+      , SOURCE.[User Account Status]
+      , SOURCE.[User Password]
+      , SOURCE.[Home Business Structure Level 1 - Organization]
+      , SOURCE.[Home Business Structure Level 2 - Entity]
+      , SOURCE.[Home Business Structure Level 3 - Service Line]
+      , SOURCE.[Home Business Structure Level 4 - Financial Unit]
+      , SOURCE.[Home Business Structure Level 5 - Fund Group]
+      , SOURCE.[Home Business Structure Level 6]
+      , SOURCE.[Home Business Structure Level 7]
+      , SOURCE.[Home Business Structure Level 8]
+      , SOURCE.[Home Business Structure Level 9]
+      , SOURCE.[Home/Primary Job]
+      , SOURCE.[Home Labor Category Level 1]
+      , SOURCE.[Home Labor Category Level 2]
+      , SOURCE.[Home Labor Category Level 3]
+      , SOURCE.[Home Labor Category Level 4]
+      , SOURCE.[Home Labor Category Level 5]
+      , SOURCE.[Home Labor Category Level 6]
+      , SOURCE.[Home Job and Labor Category Effective Date]
+      , SOURCE.[Custom Field 1]
+      , SOURCE.[Custom Field 2]
+      , SOURCE.[Custom Field 3]
+      , SOURCE.[Custom Field 4]
+      , SOURCE.[Custom Field 5]
+      , SOURCE.[Custom Field 6]
+      , SOURCE.[Custom Field 7]
+      , SOURCE.[Custom Field 8]
+      , SOURCE.[Custom Field 9]
+      , SOURCE.[Custom Field 10]
+      , SOURCE.[Custom Date 1]
+      , SOURCE.[Custom Date 2]
+      , SOURCE.[Custom Date 3]
+      , SOURCE.[Custom Date 4]
+      , SOURCE.[Custom Date 5]
+      , SOURCE.[Custom Field 11]
+      , SOURCE.[Custom Field 12]
+      , SOURCE.[Custom Field 13]
+      , SOURCE.[Custom Field 14]
+      , SOURCE.[Custom Field 15]
+      , SOURCE.[Custom Field 16]
+      , SOURCE.[Custom Field 17]
+      , SOURCE.[Custom Field 18]
+      , SOURCE.[Custom Field 19]
+      , SOURCE.[Custom Field 20]
+      , SOURCE.[Custom Field 21]
+      , SOURCE.[Custom Field 22]
+      , SOURCE.[Custom Field 23]
+      , SOURCE.[Custom Field 24]
+      , SOURCE.[Custom Field 25]
+      , SOURCE.[Custom Field 26]
+      , SOURCE.[Custom Field 27]
+      , SOURCE.[Custom Field 28]
+      , SOURCE.[Custom Field 29]
+      , SOURCE.[Custom Field 30]
+      , SOURCE.[Additional Fields for CRT lookups]
+);';
+
+    -- Debug: Print the SQL being executed
+    PRINT 'Executing SQL:';
+    PRINT SUBSTRING(@sql, 1, 4000);
+    -- Print first 4000 characters
+    IF LEN(@sql) > 4000
+        PRINT SUBSTRING(@sql, 4001, 4000);
+    -- Print next 4000 characters if needed
+
+    -- Execute dynamic SQL with parameter
+    EXEC sp_executesql @sql, 
+                       N'@p_emplid_param NVARCHAR(20)', 
+                       @p_emplid_param = @p_emplid;
+
+    -- Return row count for confirmation
+    DECLARE @rowcount INT = @@ROWCOUNT;
+    PRINT 'Rows inserted: ' + CAST(@rowcount AS VARCHAR(10));
+
+END;
+GO

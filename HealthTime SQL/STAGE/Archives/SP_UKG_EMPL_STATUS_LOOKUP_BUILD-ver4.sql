@@ -1,0 +1,207 @@
+USE [HealthTime]
+GO
+
+/****** Object:  StoredProcedure [stage].[SP_UKG_EMPL_STATUS_LOOKUP_BUILD]    Script Date: 9/5/2025 5:51:04 PM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+
+
+/***************************************************************************************************************************************************************************************************************************************************************
+--  Procedure Name: [stage].[SP_UKG_EMPL_STATUS_LOOKUP_BUILD]
+--  Author:         Jim Shih
+--  Version:        2.0
+--  Date:           9/5/2025
+--  Description:    This stored procedure identifies the most recent employee status change for each employee from stable.ps_job.
+--                  Enhanced to prioritize records that occur AFTER the MOST RECENT HIRE_DT change.
+--                  Uses LAG window function to detect both EMPL_STATUS and HIRE_DT changes
+--                  within each employee's history, ordered by effective date and sequence.
+--                  Priority Logic:
+--                  1. Records after the MOST RECENT HIRE_DT change (latest hire date adjustment)
+--                  2. If no HIRE_DT changes exist, use latest EMPL_STATUS change
+--                  3. If no status changes exist, use oldest record as fallback
+--                  Filters out deleted records and records with effective dates after the current date.
+--                  Added logic to ensure effective date is not before hire date for data integrity.
+--                  Includes HIRE_DT in output for comprehensive employee status tracking.
+--  Parameters:     None
+--  Example:        EXEC [stage].[SP_UKG_EMPL_STATUS_LOOKUP_BUILD];
+--
+--  Version History:
+--  Date        Author               Description
+--  6/10/2025 Jim Shih             Initial procedure creation.
+*-- 7/14/2025 Jim Shih
+*-- migrate from hs-ssisp-v
+*-- changed to health_ods.[health_ods].[stable].ps_job
+*-- 9/5/2025 Jim Shih              Added HIRE_DT column to output and added logic to ensure EFFDT >= HIRE_DT for data integrity
+*-- 9/5/2025 Jim Shih Ver 2.0      Enhanced to prioritize records after MOST RECENT HIRE_DT change
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+*/
+
+ALTER       PROCEDURE [stage].[SP_UKG_EMPL_STATUS_LOOKUP_BUILD]
+AS
+BEGIN
+    -- Drop table and index if they exist
+    IF OBJECT_ID('[stage].[UKG_EMPL_STATUS_LOOKUP]') IS NOT NULL
+        DROP TABLE [stage].[UKG_EMPL_STATUS_LOOKUP];
+
+    -- -- Drop index if it exists (in case table was dropped but index wasn't)
+    -- IF EXISTS (SELECT 1
+    -- FROM sys.indexes
+    -- WHERE object_id = OBJECT_ID('[stage].[UKG_EMPL_STATUS_LOOKUP]') AND name = 'IX_UKG_EMPL_STATUS_LOOKUP_emplid')
+    --     DROP INDEX IX_UKG_EMPL_STATUS_LOOKUP_emplid ON [stage].[UKG_EMPL_STATUS_LOOKUP];
+
+
+    WITH
+        StatusChanges
+        AS
+        (
+            SELECT
+                emplid,
+                EMPL_STATUS,
+                EFFDT,
+                EFFSEQ,
+                EMPL_RCD,
+                HIRE_DT,
+                -- Determine the previous EMPL_STATUS. If it's the first record for an employee, previous_EMPL_STATUS will be the current EMPL_STATUS.
+                -- Using EMPL_STATUS as default for LAG ensures previous_EMPL_STATUS is never NULL if a row exists.
+                LAG(EMPL_STATUS, 1, EMPL_STATUS) OVER (PARTITION BY emplid ORDER BY EFFDT ASC, EFFSEQ ASC, EMPL_RCD ASC) AS previous_EMPL_STATUS,
+                -- Track HIRE_DT changes using LAG function
+                LAG(HIRE_DT) OVER (PARTITION BY emplid ORDER BY EFFDT ASC, EFFSEQ ASC, EMPL_RCD ASC) AS previous_HIRE_DT,
+                -- Rank records for each employee by effective date, oldest first.
+                ROW_NUMBER() OVER (PARTITION BY emplid ORDER BY EFFDT ASC, EFFSEQ ASC, EMPL_RCD ASC) AS RowNum_Oldest
+            FROM health_ods.[health_ods].[stable].ps_job
+            WHERE EFFDT <= GETDATE() -- Consider records up to the current date
+                AND DML_IND <> 'D' -- Exclude deleted records
+                AND JOB_INDICATOR='P'
+                AND EFFDT >= HIRE_DT
+            -- Ensure effective date is not before hire date
+            -- Primary job indicator
+        ),
+        HireDateChanges
+        AS
+        (
+            -- Identify records where HIRE_DT actually changed compared to the previous chronological record.
+            SELECT
+                emplid,
+                EMPL_STATUS,
+                EFFDT,
+                EFFSEQ,
+                EMPL_RCD,
+                HIRE_DT,
+                previous_HIRE_DT,
+                previous_EMPL_STATUS,
+                -- Rank HIRE_DT change points for each employee, latest change first.
+                ROW_NUMBER() OVER (PARTITION BY emplid ORDER BY EFFDT DESC, EFFSEQ DESC, EMPL_RCD DESC) AS hire_change_rank
+            FROM StatusChanges
+            WHERE HIRE_DT <> previous_HIRE_DT AND previous_HIRE_DT IS NOT NULL
+            -- This condition defines a "HIRE_DT change event"
+        ),
+        ActualChangePoints
+        AS
+        (
+            -- Identify records where EMPL_STATUS actually changed compared to the previous chronological record.
+            SELECT
+                emplid,
+                EMPL_STATUS,
+                EFFDT,
+                EFFSEQ,
+                EMPL_RCD,
+                HIRE_DT,
+                previous_EMPL_STATUS, -- Keep for clarity if needed
+                -- Rank these change points for each employee, latest change first.
+                ROW_NUMBER() OVER (PARTITION BY emplid ORDER BY EFFDT DESC, EFFSEQ DESC, EMPL_RCD DESC) AS rn_of_change
+            FROM StatusChanges
+            WHERE EMPL_STATUS <> previous_EMPL_STATUS
+            -- This condition defines a "status change event"
+        ),
+        OldestRecordsCTE
+        AS
+        (
+            -- Dataset 3: Oldest record for each employee (fallback when no changes exist)
+            SELECT
+                sc.emplid,
+                sc.EMPL_STATUS,
+                sc.EFFDT,
+                sc.EFFSEQ,
+                sc.EMPL_RCD,
+                sc.HIRE_DT,
+                'Oldest Record' AS NOTE
+            FROM StatusChanges sc
+            WHERE sc.RowNum_Oldest = 1
+        ),
+        MostRecentHireDateChangeRecordsCTE
+        AS
+        (
+            -- Dataset 1: Records that occur AFTER the MOST RECENT HIRE_DT change (highest priority)
+            SELECT
+                hdc.emplid,
+                hdc.EMPL_STATUS,
+                hdc.EFFDT,
+                hdc.EFFSEQ,
+                hdc.EMPL_RCD,
+                hdc.HIRE_DT,
+                'After Most Recent HIRE_DT Change' AS NOTE
+            FROM HireDateChanges hdc
+            WHERE hdc.hire_change_rank = 1
+        ),
+        LatestChangeRecordsCTE
+        AS
+        (
+            -- Dataset 2: Latest EMPL_STATUS change record for each employee (when no HIRE_DT changes exist)
+            SELECT
+                acp.emplid,
+                acp.EMPL_STATUS,
+                acp.EFFDT,
+                acp.EFFSEQ,
+                acp.EMPL_RCD,
+                acp.HIRE_DT,
+                'Latest Status Change' AS NOTE
+            FROM ActualChangePoints acp
+            WHERE acp.rn_of_change = 1
+        )
+    SELECT --top 1000
+        UnionData.emplid,
+        UnionData.EMPL_STATUS,
+        UnionData.EFFDT,
+        UnionData.EFFSEQ,
+        UnionData.EMPL_RCD,
+        UnionData.HIRE_DT,
+        UnionData.NOTE,
+        GETDATE() AS LOAD_DTTM
+    INTO [stage].[UKG_EMPL_STATUS_LOOKUP]
+    FROM (
+        -- Priority 1: Records after MOST RECENT HIRE_DT change (highest priority)
+                                                                    SELECT emplid, EMPL_STATUS, EFFDT, EFFSEQ, EMPL_RCD, HIRE_DT, NOTE
+            FROM MostRecentHireDateChangeRecordsCTE
+
+        UNION ALL
+
+            -- Priority 2: Latest EMPL_STATUS change (when no HIRE_DT changes exist)
+            SELECT emplid, EMPL_STATUS, EFFDT, EFFSEQ, EMPL_RCD, HIRE_DT, NOTE
+            FROM LatestChangeRecordsCTE
+            WHERE emplid NOT IN (SELECT EMPLID
+            FROM MostRecentHireDateChangeRecordsCTE)
+
+        UNION ALL
+
+            -- Priority 3: Oldest record (fallback when no changes exist)
+            SELECT emplid, EMPL_STATUS, EFFDT, EFFSEQ, EMPL_RCD, HIRE_DT, NOTE
+            FROM OldestRecordsCTE
+            WHERE emplid NOT IN (SELECT EMPLID
+                FROM MostRecentHireDateChangeRecordsCTE)
+                AND emplid NOT IN (SELECT EMPLID
+                FROM LatestChangeRecordsCTE)
+    ) AS UnionData;
+
+
+    -- Create index on emplid for better performance
+    CREATE INDEX IX_UKG_EMPL_STATUS_LOOKUP_emplid ON [stage].[UKG_EMPL_STATUS_LOOKUP] (emplid);
+
+END;
+GO
+
+

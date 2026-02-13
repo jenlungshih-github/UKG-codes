@@ -1,0 +1,20 @@
+# stage.SP_CheckByPosition_Health_ODS_@POSITION_NBR_NVARCHAR
+
+Source: docs/stored_procedures/all_procedures.sql
+
+Link to SQL: sql/stage.SP_CheckByPosition_Health_ODS_@POSITION_NBR_NVARCHAR.sql
+
+Detected features:
+- uses_hashbytes: False
+- uses_merge: False
+- uses_select_into: False
+- uses_temp_tables: False
+- uses_dynamic_sql: False
+- uses_transactions: False
+- uses_drop_table_if_exists: False
+
+---
+
+```sql
+------------------------------------------------------------------------------------------------------ Stored Procedure: [stage].[SP_CheckByPosition_Health_ODS]-- Description: This stored procedure performs comprehensive checks on a position number--              across multiple Health ODS tables to validate position data integrity and--              business structure mappings used in UKG employee data processing.---- Purpose: Used for troubleshooting and validating position data when employees are--          filtered out of UKG_EMPLOYEE_DATA_BUILD due to missing or invalid position--          information.---- Checks Performed:-- 1. Position status and department in PS_POSITION_DATA-- 2. Department budget information in PS_DEPT_BUDGET_ERN-- 3. Financial unit information in CURRENT_POSITION_PRI_FIN_UNIT-- 4. Business structure mapping between UCPath and UKG systems---- Version Control:-- Date Modified  |  Author      |   Description-- ---------------|--------------|------------------------------------------------------ 2025-09-06     | Jim Shih     | Initial creation for position data validation----------------------------------------------------------------------------------------------------CREATE     PROCEDURE [stage].[SP_CheckByPosition_Health_ODS]    @POSITION_NBR NVARCHAR(10)AS-- Example usage:-- EXEC [stage].[SP_CheckByPosition_Health_ODS] @POSITION_NBR = '40686393';---- Parameters:-- @POSITION_NBR: The position number to check across all related tablesBEGIN    SET NOCOUNT ON;    -- Create a table variable to store informational messages    DECLARE @messages TABLE (        message_id INT IDENTITY(1,1),        message_text VARCHAR(MAX)    );
+```

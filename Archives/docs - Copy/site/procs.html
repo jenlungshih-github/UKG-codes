@@ -1,0 +1,98 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Stored Procedures - HealthTime</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 1100px; margin: 24px auto; }
+    header { margin-bottom: 24px }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 24px }
+    th, td { border: 1px solid #ddd; padding: 8px }
+    th { background:#f4f4f4 }
+    pre { background:#272822; color:#f8f8f2; padding:12px; overflow:auto; max-height: 420px }
+    section.proc { margin-bottom: 36px }
+    .flags { font-size: 0.9em }
+    .flag-true { color: green; font-weight: bold }
+    .flag-false { color: #888 }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Stored Procedures fetched from HealthTime</h1>
+    <p>Generated: 2026-02-04</p>
+    <p>This page lists procedures retrieved from the HealthTime database and shows technical info detected automatically from the SQL text (hashing, MERGE usage, dynamic SQL, temp tables, transactions, SELECT INTO, etc.).</p>
+  </header>
+
+  <div id="summary"></div>
+
+  <nav>
+    <strong>Procedures</strong>
+    <!-- PROC_LIST_START -->
+<ul>
+<li><a href='../stored_procedures/sql/dbo.UKG_EMPLOYEE_DATA_BUILD.sql'>dbo.UKG_EMPLOYEE_DATA_BUILD</a> -  (sql exists) (md exists)</li>
+<li><a href='../stored_procedures/sql/dbo.UKG_JOBGROUP_BUILD.sql'>dbo.UKG_JOBGROUP_BUILD</a> - </li>
+<li><a href='../stored_procedures/sql/dbo.UKG_LABOR_CATEGORY_ENTRY_LIST_and_PROFILE_BUILD.sql'>dbo.UKG_LABOR_CATEGORY_ENTRY_LIST_and_PROFILE_BUILD</a> - </li>
+<li><a href='../stored_procedures/sql/dbo.UKG_LOCATION_BUILD.sql'>dbo.UKG_LOCATION_BUILD</a> - </li>
+<li><a href='../stored_procedures/sql/dbo.UKG_ORG_SETS_AND_EMP_GROUPS_BUILDASBEGIN_DROP_TABLE_IF_EXISTS_dbo.UKG_ORG_SETS;_SELECT_distinct_FG-RT-_+_Reports_to_Manager.sql'>dbo.UKG_ORG_SETS_AND_EMP_GROUPS_BUILDASBEGIN_DROP_TABLE_IF_EXISTS_dbo.UKG_ORG_SETS;_SELECT_distinct_FG-RT-_+_Reports_to_Manager</a> - </li>
+<li><a href='../stored_procedures/sql/dbo.UKG_UCPATH_ACCRUAL_BUILD_@payenddt_DATEASBEGIN_SET_NOCOUNT_ON;_--.sql'>dbo.UKG_UCPATH_ACCRUAL_BUILD_@payenddt_DATEASBEGIN_SET_NOCOUNT_ON;_--</a> - HASHBYTES MERGE</li>
+<li><a href='../stored_procedures/sql/dbo.UKG_LABOR_CATEGORY_ENTRY_BUILD.sql'>dbo.UKG_LABOR_CATEGORY_ENTRY_BUILD</a> - </li>
+</ul>
+<!-- PROC_LIST_END -->
+  </nav>
+
+  <main id="procs">
+    <!-- Each procedure below is wrapped in a section with an id equal to schema.name -->
+
+    <section class="proc" id="dbo.UKG_EMPLOYEE_DATA_BUILD">
+      <h2>dbo.UKG_EMPLOYEE_DATA_BUILD</h2>
+      <div class="flags" data-sql="" id="flags-dbo.UKG_EMPLOYEE_DATA_BUILD"></div>
+      <pre id="sql-dbo.UKG_EMPLOYEE_DATA_BUILD">-- SQL definition loaded into the file docs/stored_procedures/all_procedures.sql
+(See docs/stored_procedures/sql/dbo.UKG_EMPLOYEE_DATA_BUILD.sql for the extracted SQL text.)</pre>
+    </section>
+
+    <!-- Additional procedure sections added programmatically when more SQL is available in all_procedures.sql -->
+
+  </main>
+
+  <script>
+    // client-side scanner that extracts tech info from each <pre>
+    function detectTech(sql) {
+      const s = sql || '';
+      return {
+        uses_hashbytes: /HASHBYTES\s*\(/i.test(s),
+        uses_merge: /\bMERGE\b/i.test(s),
+        uses_select_into: /SELECT\s+\*/i.test(s) && /INTO\s+/i.test(s),
+        uses_temp_tables: /\bCREATE\s+TABLE\b|\bDROP\s+TABLE\s+IF\s+EXISTS\b|#\w+/i.test(s),
+        uses_dynamic_sql: /sp_executesql|EXEC\s+\(@|EXEC\s+\(/i.test(s),
+        uses_transactions: /BEGIN\s+TRANSACTION|BEGIN TRY|COMMIT\s+TRANSACTION|ROLLBACK\s+TRANSACTION/i.test(s),
+        uses_drop_table_if_exists: /DROP\s+TABLE\s+IF\s+EXISTS/i.test(s)
+      };
+    }
+
+    // Build the index from sections
+    const sections = document.querySelectorAll('section.proc');
+    const links = document.getElementById('proc-links');
+    const summary = document.getElementById('summary');
+    let count = 0;
+    sections.forEach(sec => {
+      const id = sec.id;
+      const name = id.split('.').slice(1).join('.');
+      const pre = sec.querySelector('pre');
+      const sql = pre.textContent || '';
+      const meta = detectTech(sql);
+
+      // render flags
+      const flagsEl = sec.querySelector('.flags');
+      flagsEl.innerHTML = Object.entries(meta).map(([k,v]) => `<span class="${v? 'flag-true': 'flag-false'}">${k.replace('uses_','')}: ${v}</span>`).join(' | ');
+
+      // add nav link with a short summary
+      const li = document.createElement('li');
+      li.innerHTML = `<a href="#${id}">${id}</a> — ${meta.uses_hashbytes ? 'hash' : ''} ${meta.uses_merge ? 'MERGE' : ''}`;
+      links.appendChild(li);
+      count++;
+    });
+
+    summary.innerHTML = `<p>Total procedures on this page: <strong>${count}</strong></p>`;
+  </script>
+</body>
+</html>

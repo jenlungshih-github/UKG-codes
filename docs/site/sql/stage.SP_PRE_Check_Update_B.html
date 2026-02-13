@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>stage.SP_PRE_Check_Update_B - SQL Documentation</title>
+    <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+    <div class="container">
+        <a href="../index.html" class="back-link">&larr; Back to Index</a>
+        <h1>stage.SP_PRE_Check_Update_B</h1>
+        <p class="description"><strong>Description:</strong> Pre-check update B.</p>
+        <h2>SQL Definition</h2>
+        <pre><code>
+                                                                                                                                                                                                                                                             
+/*
+                                                                                                                                                                                                                                                           
+=============================================================================
+                                                                                                                                                                                
+Stored Procedure: SP_PRE_Check_Update_B
+                                                                                                                                                                                                                      
+Description: Date-based auto-management for MONITOR_B - enables/disables based on schedule
+                                                                                                                                                                   
+Version: 1.0
+                                                                                                                                                                                                                                                 
+Created: 2025-12-25
+                                                                                                                                                                                                                                          
+Created by: Jim Shih
+                                                                                                                                                                                                                                         
+
+                                                                                                                                                                                                                                                             
+Logic Explanation:
+                                                                                                                                                                                                                                           
+0. Date-based Auto-Management for MONITOR_B:
+                                                                                                                                                                                                                 
+   - If today = Monitor_Start_DT AND Check_Disabled=1 ? Set Check_Disabled=0 (auto-enable)
+                                                                                                                                                                   
+   - If today = Monitor_End_DT ? Set Check_Disabled=1 (auto-disable)
+                                                                                                                                                                                         
+1. Provides logging for all date-based status changes
+                                                                                                                                                                                                        
+2. Updates Update_DT timestamp for audit trail
+                                                                                                                                                                                                               
+
+                                                                                                                                                                                                                                                             
+Purpose: Pre-execution step to automatically manage MONITOR_B availability based on configured dates
+                                                                                                                                                         
+
+                                                                                                                                                                                                                                                             
+Execution: EXEC [stage].[SP_PRE_Check_Update_B];
+                                                                                                                                                                                                             
+
+                                                                                                                                                                                                                                                             
+Version History:
+                                                                                                                                                                                                                                             
+v1.0 (2025-12-25) - Initial creation with date-based auto-enable/disable logic for MONITOR_B
+                                                                                                                                                                 
+=============================================================================
+                                                                                                                                                                                
+*/
+                                                                                                                                                                                                                                                           
+
+                                                                                                                                                                                                                                                             
+CREATE   PROCEDURE [stage].[SP_PRE_Check_Update_B]
+                                                                                                                                                                                                           
+AS
+                                                                                                                                                                                                                                                           
+BEGIN
+                                                                                                                                                                                                                                                        
+    SET NOCOUNT ON;
+                                                                                                                                                                                                                                          
+
+                                                                                                                                                                                                                                                             
+    DECLARE @Today VARCHAR(10) = FORMAT(GETDATE(), 'yyyy-MM-dd');
+                                                                                                                                                                                            
+    DECLARE @UpdatesCount INT = 0;
+                                                                                                                                                                                                                           
+
+                                                                                                                                                                                                                                                             
+    BEGIN TRY
+                                                                                                                                                                                                                                                
+        PRINT 'SP_PRE_Check_Update_B starting - Today: ' + @Today;
+                                                                                                                                                                                           
+        
+                                                                                                                                                                                                                                                     
+        -- Check if today is Monitor_Start_DT and Check_Disabled is 1, then set to 0 (enable)
+                                                                                                                                                                
+        UPDATE [stage].[UKG_Accrual_Monitor_Schedule]
+                                                                                                                                                                                                        
+           SET [Check_Disabled] = 0,
+                                                                                                                                                                                                                         
+               [Update_DT] = GETDATE()
+                                                                                                                                                                                                                       
+         WHERE [Monitor] = 'MONITOR_B'
+                                                                                                                                                                                                                       
+        AND [Monitor_Start_DT] = @Today
+                                                                                                                                                                                                                      
+        AND [Check_Disabled] = 1;
+                                                                                                                                                                                                                            
+        
+                                                                                                                                                                                                                                                     
+        IF @@ROWCOUNT &gt; 0
+                                                                                                                                                                                                                                    
+        BEGIN
+                                                                                                                                                                                                                                                
+        SET @UpdatesCount = @UpdatesCount + @@ROWCOUNT;
+                                                                                                                                                                                                      
+        PRINT 'Date Logic: Check_Disabled set to 0 for MONITOR_B (today matches Monitor_Start_DT)';
+                                                                                                                                                          
+    END
+                                                                                                                                                                                                                                                      
+
+                                                                                                                                                                                                                                                             
+        -- Check if today is Monitor_End_DT, then set Check_Disabled to 1 (disable)
+                                                                                                                                                                          
+        UPDATE [stage].[UKG_Accrual_Monitor_Schedule]
+                                                                                                                                                                                                        
+           SET [Check_Disabled] = 1,
+                                                                                                                                                                                                                         
+               [Update_DT] = GETDATE()
+                                                                                                                                                                                                                       
+         WHERE [Monitor] = 'MONITOR_B'
+                                                                                                                                                                                                                       
+        AND [Monitor_End_DT] = @Today;
+                                                                                                                                                                                                                       
+        
+                                                                                                                                                                                                                                                     
+        IF @@ROWCOUNT &gt; 0
+                                                                                                                                                                                                                                    
+        BEGIN
+                                                                                                                                                                                                                                                
+        SET @UpdatesCount = @UpdatesCount + @@ROWCOUNT;
+                                                                                                                                                                                                      
+        PRINT 'Date Logic: Check_Disabled set to 1 for MONITOR_B (today matches Monitor_End_DT)';
+                                                                                                                                                            
+    END
+                                                                                                                                                                                                                                                      
+
+                                                                                                                                                                                                                                                             
+        -- Summary
+                                                                                                                                                                                                                                           
+        IF @UpdatesCount = 0
+                                                                                                                                                                                                                                 
+            PRINT 'No date-based updates required for MONITOR_B today.';
+                                                                                                                                                                                     
+        ELSE
+                                                                                                                                                                                                                                                 
+            PRINT 'Date-based updates completed for MONITOR_B. Total updates: ' + CAST(@UpdatesCount AS VARCHAR(10));
+                                                                                                                                        
+            
+                                                                                                                                                                                                                                                 
+        PRINT 'SP_PRE_Check_Update_B completed successfully.';
+                                                                                                                                                                                               
+        
+                                                                                                                                                                                                                                                     
+    END TRY
+                                                                                                                                                                                                                                                  
+    BEGIN CATCH
+                                                                                                                                                                                                                                              
+        -- Error handling
+                                                                                                                                                                                                                                    
+        PRINT 'Error occurred in SP_PRE_Check_Update_B: ' + ERROR_MESSAGE();
+                                                                                                                                                                                 
+        PRINT 'Error Line: ' + CAST(ERROR_LINE() AS VARCHAR(10));
+                                                                                                                                                                                            
+        THROW;
+                                                                                                                                                                                                                                               
+    END CATCH
+                                                                                                                                                                                                                                                
+END
+                                                                                                                                                                                                                                                          
+</code></pre>
+        <footer>Generated from: stage.SP_PRE_Check_Update_B.sql</footer>
+    </div>
+</body>
+</html>

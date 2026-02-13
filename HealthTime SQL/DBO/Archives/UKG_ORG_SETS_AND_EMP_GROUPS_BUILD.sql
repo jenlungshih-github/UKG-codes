@@ -1,0 +1,56 @@
+USE [HealthTime]
+GO
+
+/****** Object:  StoredProcedure [dbo].[UKG_ORG_SETS_AND_EMP_GROUPS_BUILD]    Script Date: 9/6/2025 4:04:17 PM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+----------------------------------------------------------------------------------------------------
+-- exec [dbo].[UKG_ORG_SETS_AND_EMP_GROUPS_BUILD]
+-- Description: This stored procedure builds the UKG_ORG_SETS and UKG_EMP_GROUPS tables based on employee data.
+-- Version Control:
+-- Date Modified  |  Author      |   Description
+-- ---------------|--------------|----------------------------------------------------
+-- 2023-07-28     | Jim Shih     | Initial version
+----------------------------------------------------------------------------------------------------
+CREATE OR ALTER     PROCEDURE [dbo].[UKG_ORG_SETS_AND_EMP_GROUPS_BUILD]
+AS
+BEGIN
+
+DROP TABLE IF EXISTS [dbo].UKG_ORG_SETS;
+
+SELECT distinct
+'FG-RT-' + [Reports to Manager] AS 'Organizational Set Name'
+, 'Fund Group Org Set Reports to '+[Reports to Manager] AS 'Organizational Set Description'
+, 'All' as 'Org Set Type'
+,[Home Business Structure Level 1 - Organization] + '/' + [Home Business Structure Level 2 - Entity] + '/' + [Home Business Structure Level 3 - Service Line] + '/' + [Home Business Structure Level 4 - Financial Unit] + '/' + [Home Business Structure Level 5 - Fund Group] AS 'Job in Org Set'
+
+INTO [dbo].UKG_ORG_SETS
+FROM [dbo].[UKG_EMPLOYEE_DATA]
+where
+LEN('FG-RT-' + [Reports to Manager]) = 14 
+-- AND
+-- [Reports to Manager] <> ''
+-- and
+-- MANAGER_EMPLID=10415792
+
+
+DROP TABLE IF EXISTS [dbo].UKG_EMP_GROUPS;
+SELECT distinct
+[Organizational Set Name] as 'Employee Group Name'
+,'' as 'Cost Center Pattern'
+,[Organizational Set Name] as 'Organizational Set'
+,'' as 'Labor Category Profile'
+INTO [dbo].UKG_EMP_GROUPS
+FROM [dbo].[UKG_ORG_SETS]
+;
+
+END
+
+GO
+
+

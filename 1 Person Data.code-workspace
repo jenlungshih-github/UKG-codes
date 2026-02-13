@@ -1,0 +1,19 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"ysql.connections": [
+			{
+				"name": "HealthTime-PROD",
+				"server": "INFOSDBP06\\INFOS06PRD",
+				"database": "HealthTime",
+				"authenticationType": "Windows",
+				"trustServerCertificate": true,
+				"encrypt": false
+			}
+		]
+	}
+}

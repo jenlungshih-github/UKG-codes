@@ -1,0 +1,64 @@
+
+USE [HealthTime]
+GO
+
+/****** Object:  StoredProcedure [stage].[SP_UKG_EMPL_Business_Structure_Lookup_Build]    Script Date: 9/6/2025 10:23:46 PM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE OR ALTER         PROCEDURE [stage].[SP_UKG_EMPL_Business_Structure_Lookup_Build]
+AS
+/*
+    File: SP_UKG_EMPL_Business_Structure_Lookup_Build.sql
+    Version: 2025-09-06
+
+    Description:
+    This stored procedure [stage].[SP_UKG_EMPL_Business_Structure_Lookup_Build] is designed to create or refresh the lookup table [stage].[UKG_EMPL_Business_Structure] in the HealthTime database.
+    - Drops the existing lookup table if it exists.
+    - Creates a new table by selecting relevant columns from [dbo].[UKG_EMPLOYEE_DATA], including a concatenated business structure path.
+    - Excludes records where the organization is 'Non-Health'.
+    - Adds a Loaded_DT column to record the load timestamp for each row.
+    - Prints a confirmation message upon successful creation.
+
+    Usage:
+    EXEC [stage].[SP_UKG_EMPL_Business_Structure_Lookup_Build]
+*/
+
+-- exec [stage].[SP_UKG_EMPL_Business_Structure_Lookup_Build]
+BEGIN
+    SET NOCOUNT ON;
+
+    -- Drop the table if it exists
+    IF OBJECT_ID('stage.UKG_EMPL_Business_Structure', 'U') IS NOT NULL
+    BEGIN
+        DROP TABLE stage.UKG_EMPL_Business_Structure;
+    END
+
+    -- Create the lookup table
+    SELECT --top 10
+        [Person Number]
+          , [First Name]
+          , [Last Name]
+    	  , [Home Business Structure Level 5 - Fund Group] as FundGroup
+          , [Home Business Structure Level 1 - Organization] + '/' +
+          [Home Business Structure Level 2 - Entity] + '/' +
+          [Home Business Structure Level 3 - Service Line] + '/' +
+          [Home Business Structure Level 4 - Financial Unit] + '/' +
+          [Home Business Structure Level 5 - Fund Group] AS [Parent Path]
+    INTO stage.UKG_EMPL_Business_Structure
+
+    FROM [dbo].[UKG_EMPLOYEE_DATA]
+    WHERE [Home Business Structure Level 1 - Organization] != 'Non-Health';
+
+    -- Add Loaded_DT column and update with current date
+    ALTER TABLE stage.UKG_EMPL_Business_Structure ADD Loaded_DT DATETIME;
+    UPDATE stage.UKG_EMPL_Business_Structure SET Loaded_DT = GETDATE();
+
+    PRINT 'Table stage.UKG_EMPL_Business_Structure has been successfully created.';
+END
+GO
+
+

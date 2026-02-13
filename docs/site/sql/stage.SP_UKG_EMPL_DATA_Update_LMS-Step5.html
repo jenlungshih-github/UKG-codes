@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>stage.SP_UKG_EMPL_DATA_Update_LMS-Step5 - SQL Documentation</title>
+    <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+    <div class="container">
+        <a href="../index.html" class="back-link">&larr; Back to Index</a>
+        <h1>stage.SP_UKG_EMPL_DATA_Update_LMS-Step5</h1>
+        <p class="description"><strong>Description:</strong> Employee data update LMS step 5.</p>
+        <h2>SQL Definition</h2>
+        <pre><code>/***************************************
+                                                                                                                                                                                                                     
+* Stored Procedure: [stage]        -- Optimized Update using indexed temporary table instead of EXISTS subqueries
+                                                                                                                                            
+        UPDATE UKG
+                                                                                                                                                                                                                                           
+        SET [Custom Field 9] = 'T'
+                                                                                                                                                                                                                           
+        FROM [dbo].[UKG_EMPLOYEE_DATA_TEMP] UKG
+                                                                                                                                                                                                              
+        WHERE [Manager Flag] = 'T'
+                                                                                                                                                                                                                           
+        OR EXISTS (
+                                                                                                                                                                                                                                          
+               SELECT 1
+                                                                                                                                                                                                                                      
+               FROM #ActiveTempLicenses LIC
+                                                                                                                                                                                                                  
+               WHERE LIC.PersonNumber = UKG.[Person Number]
+                                                                                                                                                                                                  
+           );
+                                                                                                                                                                                                                                                
+--          AND ([Custom Field 9] IS NULL OR [Custom Field 9] &lt;&gt; 'T'); -- Only update if differentL_DATA_Update_LMS-Step5]
+                                                                                                                                   
+* Created By: Jim Shih
+                                                                                                                                                                                                                                       
+* Created Date: 11/04/2025
+                                                                                                                                                                                                                                   
+* Purpose: Update Custom Field 9 to 'T' for employees where Manager Flag = 'T' 
+                                                                                                                                                                              
+*          OR who have an active temporary manager license
+                                                                                                                                                                                                   
+*          This is part of the LMS (Learning Management System) Step 5 process
+                                                                                                                                                                               
+* 
+                                                                                                                                                                                                                                                           
+* Performance Optimizations (12/03/2025):
+                                                                                                                                                                                                                    
+* - Added indexed temporary table #ActiveTempLicenses for efficient license lookups
+                                                                                                                                                                          
+*   * Clustered Index: IX_ActiveTempLicenses_PersonNumber (PersonNumber) - Primary access optimization
+                                                                                                                                                       
+*   * Nonclustered Index: IX_ActiveTempLicenses_Dates (StartDate, EndDate) - Date range optimization
+                                                                                                                                                         
+* - Eliminated redundant EXISTS subqueries by pre-calculating active licenses
+                                                                                                                                                                                
+* - Cached GETDATE() value to avoid repeated function calls
+                                                                                                                                                                                                  
+* - Total: 2 performance indexes for optimal LMS update operations
+                                                                                                                                                                                           
+* - Improved execution plans for large-scale Custom Field 9 updates
+                                                                                                                                                                                          
+*
+                                                                                                                                                                                                                                                            
+* Logic: 
+                                                                                                                                                                                                                                                    
+*   1. Updates [Custom Field 9] to 'T' for all records where:
+                                                                                                                                                                                                
+*      a) [Manager Flag] = 'T', OR
+                                                                                                                                                                                                                           
+*      b) Employee has an active temporary manager license in [HealthTime].[hts].[UKG_TempManagerLicense]
+                                                                                                                                                    
+*         where current date is between StartDate and EndDate
+                                                                                                                                                                                                
+*   2. Returns count of affected records for audit purposes
+                                                                                                                                                                                                  
+*   3. Shows verification results with update reason (Manager Flag, Temp License, or both)
+                                                                                                                                                                   
+*   4. Includes error handling and transaction management
+                                                                                                                                                                                                    
+* Usage: EXEC [stage].[SP_UKG_EMPL_DATA_Update_LMS-Step5]
+                                                                                                                                                                                                    
+* Version History:
+                                                                                                                                                                                                                                           
+*   v1.0 - 11/04/2025 - Jim Shih: Initial creation
+                                                                                                                                                                                                           
+*                      - Update Custom Field 9 based on Manager Flag
+                                                                                                                                                                                         
+*                      - Added transaction management and error handling
+                                                                                                                                                                                     
+*   v1.1 - 11/04/2025 - Jim Shih: Enhanced with temporary manager license logic
+                                                                                                                                                                              
+*                      - Added OR condition for UKG_TempManagerLicense table
+                                                                                                                                                                                 
+*                      - Checks if current date is between license StartDate and EndDate
+                                                                                                                                                                     
+*                      - Enhanced verification query with update reason classification
+                                                                                                                                                                       
+* Modified: 12/02/2025 Jim Shih - Replace [dbo].[UKG_EMPLOYEE_DATA] with [dbo].[UKG_EMPLOYEE_DATA_TEMP]
+                                                                                                                                                      
+* Modified: 12/03/2025 Jim Shih - Added comprehensive performance optimization with indexed temporary tables
+                                                                                                                                                 
+* Modified: 12/18/2025 Jim Shih - Added UCLearning logic for [Custom Field 9]
+                                                                                                                                                                                
+******************************************/
+                                                                                                                                                                                                                  
+
+                                                                                                                                                                                                                                                             
+CREATE   PROCEDURE [stage].[SP_UKG_EMPL_DATA_Update_LMS-Step5]
+                                                                                                                                                                                               
+AS
+                                                                                                                                                                                                                                                           
+BEGIN
+                                                                                                                                                                                                                                                        
+    SET NOCOUNT ON;
+                                                                                                                                                                                                                                          
+
+                                                                                                                                                                                                                                                             
+    DECLARE @RowsAffected INT = 0;
+                                                                                                                                                                                                                           
+    DECLARE @ErrorMessage NVARCHAR(4000);
+                                                                                                                                                                                                                    
+    DECLARE @CurrentDate DATETIME = GETDATE();
+                                                                                                                                                                                                               
+    -- Cache current date to avoid repeated function calls
+                                                                                                                                                                                                   
+
+                                                                                                                                                                                                                                                             
+    BEGIN TRY
+                                                                                                                                                                                                                                                
+        BEGIN TRANSACTION;
+                                                                                                                                                                                                                                   
+        
+                                                                                                                                                                                                                                                     
+        -- Performance Optimization: Create indexed temporary table for active temporary manager licenses
+                                                                                                                                                    
+        DROP TABLE IF EXISTS #ActiveTempLicenses;
+                                                                                                                                                                                                            
+        CREATE TABLE #ActiveTempLicenses
+                                                                                                                                                                                                                     
+    (
+                                                                                                                                                                                                                                                        
+        PersonNumber VARCHAR(50),
+                                                                                                                                                                                                                            
+        StartDate DATETIME,
+                                                                                                                                                                                                                                  
+        EndDate DATETIME
+                                                                                                                                                                                                                                     
+    );
+                                                                                                                                                                                                                                                       
+        
+                                                                                                                                                                                                                                                     
+        -- Populate with only currently active licenses to reduce join overhead
+                                                                                                                                                                              
+        INSERT INTO #ActiveTempLicenses
+                                                                                                                                                                                                                      
+        (PersonNumber, StartDate, EndDate)
+                                                                                                                                                                                                                   
+    SELECT PersonNumber, StartDate, EndDate
+                                                                                                                                                                                                                  
+    FROM [HealthTime].[hts].[UKG_TempManagerLicense]
+                                                                                                                                                                                                         
+    WHERE @CurrentDate BETWEEN StartDate AND EndDate;
+                                                                                                                                                                                                        
+        
+                                                                                                                                                                                                                                                     
+        -- Add comprehensive indexing for optimal performance
+                                                                                                                                                                                                
+        CREATE CLUSTERED INDEX IX_ActiveTempLicenses_PersonNumber ON #ActiveTempLicenses (PersonNumber);
+                                                                                                                                                     
+        CREATE NONCLUSTERED INDEX IX_ActiveTempLicenses_Dates ON #ActiveTempLicenses (StartDate, EndDate);
+                                                                                                                                                   
+        
+                                                                                                                                                                                                                                                     
+        -- Update Custom Field 9 to 'T' where Manager Flag = 'T' OR temporary manager license is active	  OR (12/18/2025 added the UClearing logic)  [COMPLETION STATUS] = 'Completed' in UCLearning course 'HealthTime User Training'
+                       
+	
+                                                                                                                                                                                                                                                            
+        UPDATE UKG
+                                                                                                                                                                                                                                           
+        SET [Custom Field 9] = 'T'
+                                                                                                                                                                                                                           
+        FROM [dbo].[UKG_EMPLOYEE_DATA_TEMP] UKG
+                                                                                                                                                                                                              
+        WHERE [Manager Flag] = 'T'
+                                                                                                                                                                                                                           
+        OR EXISTS (
+                                                                                                                                                                                                                                          
+               SELECT 1
+                                                                                                                                                                                                                                      
+        FROM [HealthTime].[hts].[UKG_TempManagerLicense] LIC
+                                                                                                                                                                                                 
+        WHERE LIC.PersonNumber = UKG.[Person Number]
+                                                                                                                                                                                                         
+            AND GETDATE() BETWEEN LIC.StartDate AND LIC.EndDate
+                                                                                                                                                                                              
+           )   ;
+                                                                                                                                                                                                                                             
+--        AND ([Custom Field 9] IS NULL OR [Custom Field 9] &lt;&gt; 'T'); -- Only update if different
+                                                                                                                                                             
+
+                                                                                                                                                                                                                                                             
+    WITH UCLearning AS (
+                                                                                                                                                                                                                                     
+        SELECT UCLC.EMPLID
+                                                                                                                                                                                                                                   
+          FROM [UCLearning].[dbo].[UCSDH_TABLEAU_UCLC_EMPL_ACTIVITY] AS UCLC
+                                                                                                                                                                                 
+         WHERE UCLC.[COMPLETION STATUS] = 'Completed'
+                                                                                                                                                                                                        
+           AND UCLC.[ACTIVITY CODE]     = '06HSMPAYRE0007' )
+                                                                                                                                                                                                 
+
+                                                                                                                                                                                                                                                             
+    UPDATE U
+                                                                                                                                                                                                                                                 
+       SET U.[Custom Field 9] = 'T'
+                                                                                                                                                                                                                          
+      FROM [dbo].[UKG_EMPLOYEE_DATA_TEMP] U , 
+                                                                                                                                                                                                               
+           UCLearning  E
+                                                                                                                                                                                                                                     
+     WHERE E.EMPLID = U.[Person Number]
+                                                                                                                                                                                                                      
+
+                                                                                                                                                                                                                                                             
+        SET @RowsAffected = @@ROWCOUNT;
+                                                                                                                                                                                                                      
+        
+                                                                                                                                                                                                                                                     
+        COMMIT TRANSACTION;
+                                                                                                                                                                                                                                  
+        
+                                                                                                                                                                                                                                                     
+        -- Return summary information
+                                                                                                                                                                                                                        
+        SELECT
+                                                                                                                                                                                                                                               
+        'LMS Step 5 Update Completed' AS Status,
+                                                                                                                                                                                                             
+        @RowsAffected AS RowsUpdated,
+                                                                                                                                                                                                                        
+        GETDATE() AS CompletedDateTime;
+                                                                                                                                                                                                                      
+            
+                                                                                                                                                                                                                                                 
+        -- Optimized verification query using indexed temporary table and cached date
+                                                                                                                                                                        
+        SELECT
+                                                                                                                                                                                                                                               
+        UKG.[EMPLID],
+                                                                                                                                                                                                                                        
+        UKG.[Person Number],
+                                                                                                                                                                                                                                 
+        UKG.[Manager Flag],
+                                                                                                                                                                                                                                  
+        UKG.[Custom Field 9],
+                                                                                                                                                                                                                                
+        CASE 
+                                                                                                                                                                                                                                                
+                WHEN UKG.[Manager Flag] = 'T' AND EXISTS (
+                                                                                                                                                                                                   
+                    SELECT 1
+                                                                                                                                                                                                                                 
+            FROM #ActiveTempLicenses LIC
+                                                                                                                                                                                                                     
+            WHERE LIC.PersonNumber = UKG.[Person Number]
+                                                                                                                                                                                                     
+                ) THEN 'Manager Flag + Temp License'
+                                                                                                                                                                                                         
+                WHEN UKG.[Manager Flag] = 'T' THEN 'Manager Flag Only'
+                                                                                                                                                                                       
+                WHEN EXISTS (
+                                                                                                                                                                                                                                
+                    SELECT 1
+                                                                                                                                                                                                                                 
+        FROM #ActiveTempLicenses LIC
+                                                                                                                                                                                                                         
+        WHERE LIC.PersonNumber = UKG.[Person Number]
+                                                                                                                                                                                                         
+                ) THEN 'Temp License Only'
+                                                                                                                                                                                                                   
+                ELSE 'Unknown'
+                                                                                                                                                                                                                               
+            END AS UpdateReason,
+                                                                                                                                                                                                                             
+        'Updated by LMS Step 5' AS UpdatedBy
+                                                                                                                                                                                                                 
+    FROM [dbo].[UKG_EMPLOYEE_DATA_TEMP] UKG
+                                                                                                                                                                                                                  
+    WHERE ([Manager Flag] = 'T'
+                                                                                                                                                                                                                              
+        OR EXISTS (
+                                                                                                                                                                                                                                          
+               SELECT 1
+                                                                                                                                                                                                                                      
+        FROM #ActiveTempLicenses LIC
+                                                                                                                                                                                                                         
+        WHERE LIC.PersonNumber = UKG.[Person Number]
+                                                                                                                                                                                                         
+           ))
+                                                                                                                                                                                                                                                
+        AND [Custom Field 9] = 'T';
+                                                                                                                                                                                                                          
+          
+                                                                                                                                                                                                                                                   
+        -- Clean up temporary table
+                                                                                                                                                                                                                          
+        DROP TABLE #ActiveTempLicenses;
+                                                                                                                                                                                                                      
+          
+                                                                                                                                                                                                                                                   
+    END TRY
+                                                                                                                                                                                                                                                  
+    BEGIN CATCH
+                                                                                                                                                                                                                                              
+        IF @@TRANCOUNT &gt; 0
+                                                                                                                                                                                                                                   
+            ROLLBACK TRANSACTION;
+                                                                                                                                                                                                                            
+            
+                                                                                                                                                                                                                                                 
+        -- Clean up temporary table in case of error
+                                                                                                                                                                                                         
+        IF OBJECT_ID('tempdb..#ActiveTempLicenses', 'U') IS NOT NULL
+                                                                                                                                                                                         
+            DROP TABLE #ActiveTempLicenses;
+                                                                                                                                                                                                                  
+            
+                                                                                                                                                                                                                                                 
+        SET @ErrorMessage = ERROR_MESSAGE();
+                                                                                                                                                                                                                 
+        
+                                                                                                                                                                                                                                                     
+        SELECT
+                                                                                                                                                                                                                                               
+        'LMS Step 5 Update Failed' AS Status,
+                                                                                                                                                                                                                
+        @ErrorMessage AS ErrorMessage,
+                                                                                                                                                                                                                       
+        ERROR_NUMBER() AS ErrorNumber,
+                                                                                                                                                                                                                       
+        ERROR_SEVERITY() AS ErrorSeverity,
+                                                                                                                                                                                                                   
+        ERROR_STATE() AS ErrorState,
+                                                                                                                                                                                                                         
+        GETDATE() AS ErrorDateTime;
+                                                                                                                                                                                                                          
+            
+                                                                                                                                                                                                                                                 
+        -- Re-raise the error
+                                                                                                                                                                                                                                
+        THROW;
+                                                                                                                                                                                                                                               
+    END CATCH
+                                                                                                                                                                                                                                                
+END
+                                                                                                                                                                                                                                                          
+</code></pre>
+        <footer>Generated from: stage.SP_UKG_EMPL_DATA_Update_LMS-Step5.sql</footer>
+    </div>
+</body>
+</html>

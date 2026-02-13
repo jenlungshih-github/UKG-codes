@@ -1,0 +1,256 @@
+
+                                                                                                                                                                                                                                                             
+
+                                                                                                                                                                                                                                                             
+
+                                                                                                                                                                                                                                                             
+ 
+                                                                                                                                                                                                                                                            
+/***************************************
+                                                                                                                                                                                                                     
+* -- EXEC [dbo].[UKG_LABOR_CATEGORY_ENTRY_BUILD]
+                                                                                                                                                                                                             
+* Created By: May Xu	
+                                                                                                                                                                                                                                        
+* Table: This SP creates table [dbo].[UKG_Labor_Category_Entry] for Labor_category_entry.csv
+                                                                                                                                                                 
+* [dbo].[UKG_LABOR_CATEGORY_ENTRY_BUILD]	
+                                                                                                                                                                                                                    
+* -- 05/06/2025 May Xu: Created
+                                                                                                                                                                                                                              
+* -- 05/28/2025 Jim Shih: modify based on JK's document on 5/28, Updated based upon WFM Name
+                                                                                                                                                                 
+* -- 06/27/2025 Jim Shih: modify based on JK's document on 6/27, Updated based upon WFM Name
+                                                                                                                                                                 
+* -- 07/03/2025 Jim Shih: JOB_INDICATOR+ '-' + jobcode + '-' +	 POSITION_DESCR AS 'Description', Updated based upon WFM Name
+                                                                                                                                 
+* -- 07/28/2025 May Xu: add code to create a snapshot of the table UKG_LABOR_CATEGORY_ENTRY and drop any 30 days old snapshot
+                                                                                                                                
+* -- 08/04/2025 Jim Shis: FIXED special characters issue
+                                                                                                                                                                                                     
+* -- 08/13/2025 Jim Shih: add + '-' + BUSINESS_UNIT 
+                                                                                                                                                                                                         
+* -- 					 JOB_INDICATOR+ '-' + jobcode + '-' +	 POSITION_DESCR + '-' + BUSINESS_UNIT AS 'Description',  -- 8/13
+                                                                                                                                             
+******************************************/	 	 
+                                                                                                                                                                                                              
+
+                                                                                                                                                                                                                                                             
+CREATE          PROCEDURE [dbo].[UKG_LABOR_CATEGORY_ENTRY_BUILD]
+                                                                                                                                                                                             
+AS  
+                                                                                                                                                                                                                                                         
+
+                                                                                                                                                                                                                                                             
+BEGIN 
+                                                                                                                                                                                                                                                       
+
+                                                                                                                                                                                                                                                             
+DROP TABLE IF EXISTS [dbo].UKG_LABOR_CATEGORY_ENTRY;
+                                                                                                                                                                                                         
+
+                                                                                                                                                                                                                                                             
+
+                                                                                                                                                                                                                                                             
+SELECT DISTINCT 
+                                                                                                                                                                                                                                             
+       POSITION_NBR + '_' + CAST(EMPL_rcd AS VARCHAR)  AS 'Labor Category Entry Name',
+                                                                                                                                                                       
+--       jobcode + '-' +	 POSITION_DESCR AS 'Description',  -- ODS: Job_indicator_ps_job.jobcode +'-' + ps_positiondata.descr
+                                                                                                                                
+	   JOB_INDICATOR+ '-' + jobcode + '-' +	 POSITION_DESCR + '-' + BUSINESS_UNIT AS 'Description',  -- 8/13
+                                                                                                                                                    
+       '0' AS 'InactiveFlag',
+                                                                                                                                                                                                                                
+--     'Position' AS 'Labor Category Name'	-- 5/6   
+                                                                                                                                                                                                         
+--     'Position_Record Number' AS 'Labor Category Name'  -- 5/28
+                                                                                                                                                                                            
+       'Position_Record_Number' AS 'Labor Category Name'  -- 6/27 from Position_Record Number to Position_Record_Number
+                                                                                                                                      
+INTO [dbo].UKG_LABOR_CATEGORY_ENTRY
+                                                                                                                                                                                                                          
+FROM health_ods.[Health_ODS].[RPT].CURRENT_EMPL_DATA EMPL
+                                                                                                                                                                                                    
+WHERE 1=1 
+                                                                                                                                                                                                                                                   
+ -- AND EMPL.JOB_INDICATOR = 'P'   
+                                                                                                                                                                                                                          
+  AND (EMPL.VC_CODE = 'VCHSH'   	 --MED CENTER
+                                                                                                                                                                                                               
+       OR (EMPL.DEPTID BETWEEN '002000' AND '002999' AND EMPL.DEPTID NOT IN ('002230','002231','002280') )	 -- PHSO
+                                                                                                                                          
+       )
+                                                                                                                                                                                                                                                     
+  AND ((EMPL.hr_status = 'A' 	) 	 -- active empl
+                                                                                                                                                                                                             
+       OR  (EMPL.hr_status = 'I' and CONVERT(DATE, effdt) = CONVERT(DATE, GETDATE()))	 --terminated empl today
+                                                                                                                                               
+	   )
+                                                                                                                                                                                                                                                        
+  AND PAY_FREQUENCY = 'B'	
+                                                                                                                                                                                                                                   
+  AND EMPL_TYPE = 'H' -- Biweekly and hourly empl only
+                                                                                                                                                                                                       
+  AND NOT (EMPL.DEPTID IN ('002053','002056','003919') AND EMPL.JOBCODE IN ('000770','000771','000772','000775','000776')   )	--exclude ARC MSP POPULATION
+                                                                                                   
+
+                                                                                                                                                                                                                                                             
+INSERT INTO  [dbo].UKG_LABOR_CATEGORY_ENTRY  
+                                                                                                                                                                                                                
+( [Labor Category Entry Name], [Description], [InactiveFlag],  [Labor Category Name]) 
+                                                                                                                                                                       
+SELECT DISTINCT 
+                                                                                                                                                                                                                                             
+       JOBCODE  AS 'Labor Category Entry Name',
+                                                                                                                                                                                                              
+       JOBCODE_DESCR AS 'Description',
+                                                                                                                                                                                                                       
+       '0' AS 'InactiveFlag',
+                                                                                                                                                                                                                                
+--     'Jobcode' AS 'Labor Category Name' 	  -- 5/6  
+                                                                                                                                                                                                        
+       'HR Job Code' AS 'Labor Category Name' -- 5/28
+                                                                                                                                                                                                        
+FROM health_ods.[Health_ODS].[RPT].current_empl_data empl
+                                                                                                                                                                                                    
+where 1=1 
+                                                                                                                                                                                                                                                   
+  --AND EMPL.JOB_INDICATOR = 'P'   
+                                                                                                                                                                                                                          
+  AND (EMPL.VC_CODE = 'VCHSH'   	 --MED CENTER
+                                                                                                                                                                                                               
+       OR (EMPL.DEPTID BETWEEN '002000' AND '002999' AND EMPL.DEPTID NOT IN ('002230','002231','002280') )	 -- PHSO
+                                                                                                                                          
+       )
+                                                                                                                                                                                                                                                     
+  AND ((EMPL.hr_status = 'A' 	) 	 -- active empl
+                                                                                                                                                                                                             
+       OR  (EMPL.hr_status = 'I' and CONVERT(DATE, effdt) = CONVERT(DATE, GETDATE()))	 --terminated empl today
+                                                                                                                                               
+	   )
+                                                                                                                                                                                                                                                        
+  AND PAY_FREQUENCY = 'B'	
+                                                                                                                                                                                                                                   
+  AND EMPL_TYPE = 'H' -- Biweekly and hourly empl only
+                                                                                                                                                                                                       
+  AND NOT (EMPL.DEPTID IN ('002053','002056','003919') AND EMPL.JOBCODE IN ('000770','000771','000772','000775','000776')   )	--exclude ARC MSP POPULATION
+                                                                                                   
+
+                                                                                                                                                                                                                                                             
+
+                                                                                                                                                                                                                                                             
+-- fix special characters issue
+                                                                                                                                                                                                                              
+DROP TABLE if exists [stage].[UKG_LABOR_CATEGORY_ENTRY_BUILD_FIXED_SPEC_CHAR];
+                                                                                                                                                                               
+
+                                                                                                                                                                                                                                                             
+    SELECT * 
+                                                                                                                                                                                                                                                
+    INTO [stage].[UKG_LABOR_CATEGORY_ENTRY_BUILD_FIXED_SPEC_CHAR]
+                                                                                                                                                                                            
+    FROM [dbo].[UKG_LABOR_CATEGORY_ENTRY_V]
+                                                                                                                                                                                                                  
+;
+                                                                                                                                                                                                                                                            
+
+                                                                                                                                                                                                                                                             
+truncate table [dbo].[UKG_LABOR_CATEGORY_ENTRY];
+                                                                                                                                                                                                             
+
+                                                                                                                                                                                                                                                             
+INSERT INTO [dbo].[UKG_LABOR_CATEGORY_ENTRY]
+                                                                                                                                                                                                                 
+           ([Labor Category Entry Name]
+                                                                                                                                                                                                                      
+           ,[Description]
+                                                                                                                                                                                                                                    
+ ,[InactiveFlag]
+                                                                                                                                                                                                                                             
+           ,[Labor Category Name])
+                                                                                                                                                                                                                           
+SELECT [Labor Category Entry Name]
+                                                                                                                                                                                                                           
+      ,[Description]
+                                                                                                                                                                                                                                         
+      ,[InactiveFlag]
+                                                                                                                                                                                                                                        
+      ,[Labor Category Name]
+                                                                                                                                                                                                                                 
+  FROM [stage].[UKG_LABOR_CATEGORY_ENTRY_BUILD_FIXED_SPEC_CHAR]
+                                                                                                                                                                                              
+;
+                                                                                                                                                                                                                                                            
+
+                                                                                                                                                                                                                                                             
+    -- ***LOOP TO DROP ANY 30 DAY OLD and TODAY’S UKG_LABOR_CATEGORY_ENTRY_SNAPSHOT TABLES ***--
+                                                                                                                                                             
+DECLARE @SQL_DROP NVARCHAR(MAX)   
+                                                                                                                                                                                                                           
+       
+                                                                                                                                                                                                                                                      
+SELECT 
+                                                                                                                                                                                                                                                      
+    @SQL_DROP = COALESCE(@SQL_DROP + ' ;', '') +       
+                                                                                                                                                                                                      
+         'DROP TABLE ' + QUOTENAME(S.NAME) + '.' + QUOTENAME(T.NAME)    
+                                                                                                                                                                                     
+    FROM SYS.SCHEMAS S      
+                                                                                                                                                                                                                                 
+    INNER JOIN SYS.TABLES T ON T.SCHEMA_ID = S.SCHEMA_ID       
+                                                                                                                                                                                              
+    WHERE S.NAME IN ( 'BCK')        
+                                                                                                                                                                                                                         
+     AND T.NAME LIKE 'UKG_LABOR_CATEGORY_ENTRY_SNAPSHOT_%' 
+                                                                                                                                                                                                  
+     AND ( CAST(SUBSTRING (T.NAME,35, 10 ) AS DATE) <  CAST(DATEADD(DAY,-30, GETDATE())   AS DATE)   OR CAST(SUBSTRING (T.NAME,35, 10 ) AS DATE) =  CAST(GETDATE()       AS DATE) )
+                                                                          
+                     
+                                                                                                                                                                                                                                        
+--PRINT @SQL_DROP  
+                                                                                                                                                                                                                                          
+EXEC(@SQL_DROP)
+                                                                                                                                                                                                                                              
+ 
+                                                                                                                                                                                                                                                            
+
+                                                                                                                                                                                                                                                             
+--*** CREATE SNAPSHOT TABLE  ***--
+                                                                                                                                                                                                                           
+
+                                                                                                                                                                                                                                                             
+DECLARE @SQL_CREATE NVARCHAR(MAX) ;  
+                                                                                                                                                                                                                        
+DECLARE @SNAPSHOT_TABLENAME NVARCHAR(50); 
+                                                                                                                                                                                                                   
+
+                                                                                                                                                                                                                                                             
+SET @SNAPSHOT_TABLENAME = 'UKG_LABOR_CATEGORY_ENTRY_SNAPSHOT_'+CAST(CAST(GETDATE() AS DATE) AS CHAR(10));
+                                                                                                                                                    
+
+                                                                                                                                                                                                                                                             
+SELECT 
+                                                                                                                                                                                                                                                      
+    @SQL_CREATE =  
+                                                                                                                                                                                                                                          
+        N'DROP TABLE IF EXISTS bck.[' + @SNAPSHOT_TABLENAME + ']; ' +
+                                                                                                                                                                                        
+        N'SELECT * INTO bck.[' + @SNAPSHOT_TABLENAME + '] FROM dbo.UKG_LABOR_CATEGORY_ENTRY';
+                                                                                                                                                                
+     
+                                                                                                                                                                                                                                                        
+    
+                                                                                                                                                                                                                                                         
+--PRINT @SQL_CREATE;
+                                                                                                                                                                                                                                         
+EXEC(@SQL_CREATE)
+                                                                                                                                                                                                                                            
+  
+                                                                                                                                                                                                                                                           
+END;
+                                                                                                                                                                                                                                                         
+
+                                                                                                                                                                                                                                                             
+
+                                                                                                                                                                                                                                                             

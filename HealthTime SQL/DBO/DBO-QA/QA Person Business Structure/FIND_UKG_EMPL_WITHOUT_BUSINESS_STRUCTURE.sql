@@ -1,0 +1,46 @@
+-- Find employees with FIN combo but missing HTS business-structure mapping
+-- Outputs a list of distinct EMPLIDs, a summary count per EMPLID, and detailed rows
+
+-- 1) Distinct EMPLIDs where a FIN combo exists but no matching HTS COMBOCODE
+SELECT DISTINCT
+    EMPL.EMPLID
+FROM health_ods.[health_ods].[RPT].CURRENT_EMPL_DATA EMPL
+LEFT JOIN health_ods.[Health_ODS].[stage].[CURRENT_POSITION_PRI_FIN_UNIT_ALL_LOOKUP_V] FIN
+    ON EMPL.POSITION_NBR = FIN.POSITION_NBR
+LEFT JOIN [hts].[UKG_BusinessStructure] UKG_BS
+    ON UKG_BS.COMBOCODE = FIN.FDM_COMBO_CD
+WHERE FIN.FDM_COMBO_CD IS NOT NULL
+  AND UKG_BS.COMBOCODE IS NULL
+ORDER BY EMPL.EMPLID;
+
+-- 2) Summary counts per EMPLID (how many positions missing HTS mapping)
+SELECT
+    EMPL.EMPLID,
+    COUNT(DISTINCT FIN.POSITION_NBR) AS positions_missing_hts_mapping
+FROM health_ods.[health_ods].[RPT].CURRENT_EMPL_DATA EMPL
+LEFT JOIN health_ods.[Health_ODS].[stage].[CURRENT_POSITION_PRI_FIN_UNIT_ALL_LOOKUP_V] FIN
+    ON EMPL.POSITION_NBR = FIN.POSITION_NBR
+LEFT JOIN [hts].[UKG_BusinessStructure] UKG_BS
+    ON UKG_BS.COMBOCODE = FIN.FDM_COMBO_CD
+WHERE FIN.FDM_COMBO_CD IS NOT NULL
+  AND UKG_BS.COMBOCODE IS NULL
+GROUP BY EMPL.EMPLID
+ORDER BY positions_missing_hts_mapping DESC, EMPL.EMPLID;
+
+-- 3) Detailed rows for review (EMPLID, POSITION_NBR, FIN combo)
+SELECT
+    EMPL.EMPLID,
+    FIN.POSITION_NBR,
+    FIN.FDM_COMBO_CD AS FIN_COMBOCODE,
+    UKG_BS.COMBOCODE AS HTS_COMBOCODE,
+    EMPL.DEPTID,
+    EMPL.JOBCODE,
+    EMPL.EFFDT
+FROM health_ods.[health_ods].[RPT].CURRENT_EMPL_DATA EMPL
+LEFT JOIN health_ods.[Health_ODS].[stage].[CURRENT_POSITION_PRI_FIN_UNIT_ALL_LOOKUP_V] FIN
+    ON EMPL.POSITION_NBR = FIN.POSITION_NBR
+LEFT JOIN [hts].[UKG_BusinessStructure] UKG_BS
+    ON UKG_BS.COMBOCODE = FIN.FDM_COMBO_CD
+WHERE FIN.FDM_COMBO_CD IS NOT NULL
+  AND UKG_BS.COMBOCODE IS NULL
+ORDER BY EMPL.EMPLID, FIN.POSITION_NBR;

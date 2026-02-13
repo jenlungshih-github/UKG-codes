@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>dbo.UKG_ORG_SETS_AND_EMP_GROUPS_BUILD - SQL Documentation</title>
+    <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+    <div class="container">
+        <a href="../index.html" class="back-link">&larr; Back to Index</a>
+        <h1>dbo.UKG_ORG_SETS_AND_EMP_GROUPS_BUILD</h1>
+        <p class="description"><strong>Description:</strong> Org sets and emp groups build.</p>
+        <h2>SQL Definition</h2>
+        <pre><code>
+                                                                                                                                                                                                                                                             
+----------------------------------------------------------------------------------------------------
+                                                                                                                                                         
+-- exec [dbo].[UKG_ORG_SETS_AND_EMP_GROUPS_BUILD]
+                                                                                                                                                                                                            
+-- Description: This stored procedure builds the UKG_ORG_SETS and UKG_EMP_GROUPS tables based on employee data.
+                                                                                                                                              
+-- Version Control:
+                                                                                                                                                                                                                                          
+-- Date Modified  |  Author      |   Description
+                                                                                                                                                                                                             
+-- ---------------|--------------|----------------------------------------------------
+                                                                                                                                                                       
+-- 2023-07-28     | Jim Shih     | Initial version
+                                                                                                                                                                                                           
+-- 2025-09-11     | Jim Shih     | Added &lt;&gt;'' conditions for business structure columns to prevent blankvalues in 'Job in Org Set'
+                                                                                                                           
+----------------------------------------------------------------------------------------------------
+                                                                                                                                                         
+CREATE PROCEDURE "dbo"."UKG_ORG_SETS_AND_EMP_GROUPS_BUILD"
+                                                                                                                                                                                                   
+AS
+                                                                                                                                                                                                                                                           
+BEGIN
+                                                                                                                                                                                                                                                        
+
+                                                                                                                                                                                                                                                             
+    DROP TABLE IF EXISTS [dbo].UKG_ORG_SETS;
+                                                                                                                                                                                                                 
+
+                                                                                                                                                                                                                                                             
+    SELECT distinct
+                                                                                                                                                                                                                                          
+        'FG-RT-' + [Reports to Manager] AS 'Organizational Set Name'
+                                                                                                                                                                                         
+, 'Fund Group Org Set Reports to '+[Reports to Manager] AS 'Organizational Set Description'
+                                                                                                                                                                  
+, 'All' as 'Org Set Type'
+                                                                                                                                                                                                                                    
+, [Home Business Structure Level 1 - Organization] + '/' + [Home Business Structure Level 2 - Entity] + '/' + [Home Business Structure Level 3 - Service Line] + '/' + [Home Business Structure Level 4 - Financial Unit] + '/' + [Home Business Structure Leve
+l 5 - Fund Group] AS 'Job in Org Set'
+                                                                                                                                                                                                                        
+
+                                                                                                                                                                                                                                                             
+    INTO [dbo].UKG_ORG_SETS
+                                                                                                                                                                                                                                  
+    FROM [dbo].[UKG_EMPLOYEE_DATA]
+                                                                                                                                                                                                                           
+    where
+                                                                                                                                                                                                                                                    
+LEN('FG-RT-' + [Reports to Manager]) = 14
+                                                                                                                                                                                                                    
+        AND [Home Business Structure Level 1 - Organization] &lt;&gt; ''
+                                                                                                                                                                                           
+        AND [Home Business Structure Level 2 - Entity] &lt;&gt; ''
+                                                                                                                                                                                                 
+        AND [Home Business Structure Level 3 - Service Line] &lt;&gt; ''
+                                                                                                                                                                                           
+        AND [Home Business Structure Level 4 - Financial Unit] &lt;&gt; ''
+                                                                                                                                                                                         
+        AND [Home Business Structure Level 5 - Fund Group] &lt;&gt; ''
+                                                                                                                                                                                             
+    -- AND
+                                                                                                                                                                                                                                                   
+    -- [Reports to Manager] &lt;&gt; ''
+                                                                                                                                                                                                                            
+    -- and
+                                                                                                                                                                                                                                                   
+    -- MANAGER_EMPLID=10415792
+                                                                                                                                                                                                                               
+
+                                                                                                                                                                                                                                                             
+
+                                                                                                                                                                                                                                                             
+    DROP TABLE IF EXISTS [dbo].UKG_EMP_GROUPS;
+                                                                                                                                                                                                               
+    SELECT distinct
+                                                                                                                                                                                                                                          
+        [Organizational Set Name] as 'Employee Group Name'
+                                                                                                                                                                                                   
+, '' as 'Cost Center Pattern'
+                                                                                                                                                                                                                                
+, [Organizational Set Name] as 'Organizational Set'
+                                                                                                                                                                                                          
+, '' as 'Labor Category Profile'
+                                                                                                                                                                                                                             
+    INTO [dbo].UKG_EMP_GROUPS
+                                                                                                                                                                                                                                
+    FROM [dbo].[UKG_ORG_SETS]
+                                                                                                                                                                                                                                
+;
+                                                                                                                                                                                                                                                            
+
+                                                                                                                                                                                                                                                             
+END
+                                                                                                                                                                                                                                                          
+
+                                                                                                                                                                                                                                                             
+
+                                                                                                                                                                                                                                                             
+</code></pre>
+        <footer>Generated from: dbo.UKG_ORG_SETS_AND_EMP_GROUPS_BUILD.sql</footer>
+    </div>
+</body>
+</html>

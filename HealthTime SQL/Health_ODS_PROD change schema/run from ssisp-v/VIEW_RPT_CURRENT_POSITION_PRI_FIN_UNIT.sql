@@ -1,0 +1,123 @@
+USE [Health_ODS]
+GO
+
+/****** Object:  View [RPT].[CURRENT_POSITION_PRI_FIN_UNIT]    Script Date: 9/24/2024 9:16:28 PM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+/*
+  View: [RPT].[CURRENT_POSITION_GEN_FIN_UNIT] 	view to contains the postion and fin_unit for primary funding by this ERNCD order : REG , blank ERNCD
+				     and F.FISCAL_YEAR to the current FY
+		This view is used by Email by fund, Org chart and empl Org
+        select * from [RPT].[CURRENT_POSITION_GEN_FIN_UNIT]
+  09/15/2021 May X: Create the view   contains the postion and fin_unit for Primary funding (ERNCD = '').
+        This view is used by fis coa_fin_by_email report (mulesoft) from Trang's team.
+  10/21/2021 May X: modified the view to contains the postion and fin_unit for primary funding by this ERNCD order : REG , blank ERNCD
+				     and F.FISCAL_YEAR to the current FY
+					Still keep the  ' F.DEPTID = xx.DEPTID ' as we only use the current FY
+*/
+
+ALTER  VIEW [RPT].[CURRENT_POSITION_PRI_FIN_UNIT] AS 	
+
+SELECT 
+   A.POSITION_NBR,
+   A.DESCR AS POSN_DESCR,
+   A.DEPTID,
+   A.DEPTID_DESCR,
+   A.JOBCODE,
+   A.JOBCODE_DESCR,
+   A.FTE,
+   A.REPORTS_TO,   
+   G.ACCOUNT, 
+   G.DEPTID_CF,
+   D.DESCR AS DEPTID_CF_DESCR,
+   G.FUND_CODE, 
+   G.OPERATING_UNIT,
+   G.ACCT_CD AS FDM_COMBO_CD,   --
+   f.ERNCD,	f.FISCAL_YEAR,
+   F.DIST_PCT ,	--	f.erncd, F.ACCT_CD,	 -- CASE WHEN F.EARNCD = 'REG' THEN 'ZZZ'  WHEN F.EARNCD = '' THEN 'ZZY' ELSE F.EARNCD END AS TEST, 
+   G.PROJECT_ID,
+   G.PRODUCT, 
+   G.CHARTFIELD1,
+   G.CHARTFIELD2,
+   G.CHARTFIELD3,
+   G.PROGRAM_CODE,  
+   G.CLASS_FLD,
+  -- G.FDM_HASH,
+  ROW_NUMBER() OVER (PARTITION BY A.POSITION_NBR ORDER BY (CASE WHEN F.ERNCD = 'REG' THEN 'ZZZ'  WHEN F.ERNCD = '' THEN 'ZZY' ELSE F.ERNCD END ) DESC, DIST_PCT DESC , G.ACCT_CD ) AS POSN_SEQ  -- seq by ERNCD 'REG','' and others.
+  FROM  [RPT].[CURRENT_POSITION] A 
+ LEFT OUTER JOIN  STABLE.PS_DEPT_BUDGET_ERN F
+   ON A.POSITION_NBR = F.POSITION_NBR
+  AND A.POSITION_NBR <> ''
+  AND F.DML_IND <> 'D'
+  AND (F.FUNDING_END_DT >= CURRENT_TIMESTAMP OR F.FUNDING_END_DT  IS NULL)
+  AND F.SETID = 'SDCMP'
+  AND F.FISCAL_YEAR = YEAR( DATEADD(MONTH, 6, GETDATE())) 
+  /*
+ AND F.FISCAL_YEAR <= YEAR( DATEADD(MONTH, 6, GETDATE()))   
+ AND F.FISCAL_YEAR = (SELECT MAX(FF.FISCAL_YEAR) FROM STABLE.PS_DEPT_BUDGET_ERN FF 
+	                    WHERE FF.SETID = 'SDCMP' --AND FF.DEPTID = F.DEPTID 
+	                    --AND FF.POSITION_NBR = F.POSITION_NBR
+					 AND FF.EFFDT < CURRENT_TIMESTAMP
+						  AND FF.DML_IND <> 'D' --AND FF.ERNCD = ''
+						  ) */  
+  AND F.EFFDT =
+        (SELECT MAX(F_ED.EFFDT) FROM STABLE.PS_DEPT_BUDGET_ERN F_ED
+         WHERE F.SETID = F_ED.SETID
+          AND F.DEPTID = F_ED.DEPTID
+          AND F.FISCAL_YEAR = F_ED.FISCAL_YEAR
+          AND F.POSITION_POOL_ID = F_ED.POSITION_POOL_ID
+          AND F.SETID_JOBCODE = F_ED.SETID_JOBCODE
+          AND F.JOBCODE = F_ED.JOBCODE
+          AND F.POSITION_NBR = F_ED.POSITION_NBR
+          AND F.EMPLID = F_ED.EMPLID
+          AND F.EMPL_RCD = F_ED.EMPL_RCD
+          AND F_ED.EFFDT <= CURRENT_TIMESTAMP
+		  AND F_ED.DML_IND <> 'D'		 
+		  )
+  AND F.EFFSEQ =
+        (SELECT MAX(F_ES.EFFSEQ) FROM STABLE.PS_DEPT_BUDGET_ERN F_ES
+         WHERE F.SETID = F_ES.SETID
+          AND F.DEPTID = F_ES.DEPTID
+          AND F.FISCAL_YEAR = F_ES.FISCAL_YEAR
+          AND F.POSITION_POOL_ID = F_ES.POSITION_POOL_ID
+          AND F.SETID_JOBCODE = F_ES.SETID_JOBCODE
+          AND F.JOBCODE = F_ES.JOBCODE
+          AND F.POSITION_NBR = F_ES.POSITION_NBR
+          AND F.EMPLID = F_ES.EMPLID
+          AND F.EMPL_RCD = F_ES.EMPL_RCD
+          AND F.EFFDT = F_ES.EFFDT
+		  AND F_ES.DML_IND <> 'D'		 
+		  )		
+ AND F.BUDGET_SEQ = (SELECT MAX(FF.BUDGET_SEQ) FROM STABLE.PS_DEPT_BUDGET_ERN FF 
+	                  WHERE FF.SETID = F.SETID AND FF.DEPTID = F.DEPTID 
+					    AND FF.FISCAL_YEAR = F.FISCAL_YEAR
+                        AND FF.POSITION_NBR = F.POSITION_NBR AND FF.EMPLID = F.EMPLID 
+						AND FF.EMPL_RCD = F.EMPL_RCD AND FF.EFFDT = F.EFFDT 
+						AND FF.EFFSEQ = F.EFFSEQ 
+						AND FF.ERNCD = F.ERNCD 
+						AND FF.DML_IND <> 'D')
+  LEFT OUTER JOIN  STABLE.PS_ACCT_CD_TBL G
+     ON  F.ACCT_CD = G.ACCT_CD		 --
+	 AND F.ACCT_CD <> ''
+	 AND G.DML_IND <> 'D'	
+  LEFT OUTER JOIN   STABLE.PS_DEPT_TBL D
+   ON D.DEPTID = G.DEPTID_CF
+  AND D.SETID = 'SDFIN'
+  AND D.EFFDT =
+        (SELECT MAX(D_ED.EFFDT) FROM STABLE.PS_DEPT_TBL D_ED
+         WHERE D.SETID  = D_ED.SETID
+           AND D.DEPTID = D_ED.DEPTID
+           --AND D_ED.EFFDT <= G.EFFDT		 --
+		   AND D_ED.DML_IND <> 'D'
+		   AND D_ED.EFF_STATUS = 'A')
+	AND D.DML_IND <> 'D'
+	AND D.EFF_STATUS = 'A'
+WHERE  A.POSN_STATUS = 'A'	
+GO
+
+
