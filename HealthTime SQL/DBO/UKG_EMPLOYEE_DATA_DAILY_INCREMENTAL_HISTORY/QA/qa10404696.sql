@@ -1,0 +1,6 @@
+
+SELECT * 
+FROM [dbo].[UKG_EMPLOYEE_DATA_DAILY_INCREMENTAL_HISTORY]
+WHERE 
+emplid=10404696
+order by snapshot_date desc
